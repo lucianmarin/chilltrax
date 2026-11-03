@@ -215,11 +215,43 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertEqual(state.selectedStation, .chilltrax)
         XCTAssertEqual(state.selectedStation.badgeLabel, "TRAX")
         XCTAssertEqual(state.selectedStream.station, .chilltrax)
+        XCTAssertEqual(state.toolbarStatusLabel, "READY")
 
-        state.selectStation(.radioDanz)
+        var settingsOpenCount = 0
+        // Clicking toolbar status while READY opens Settings without switching stations
+        XCTAssertFalse(state.handleToolbarStatusTap(autoPlayIfCurrentlyPlaying: false) {
+            settingsOpenCount += 1
+        })
+        XCTAssertEqual(settingsOpenCount, 1)
+        XCTAssertEqual(state.selectedStation, .chilltrax)
+
+        // Clicking toolbar status while TRAX / DANZ switches stations without opening Settings
+        state.radioPlayer.setSimulatedPlaybackStateForTesting(isPlaying: true, status: .playing)
+        XCTAssertEqual(state.toolbarStatusLabel, "TRAX")
+        XCTAssertTrue(state.handleToolbarStatusTap(autoPlayIfCurrentlyPlaying: false) {
+            settingsOpenCount += 1
+        })
+        XCTAssertEqual(settingsOpenCount, 1)
         XCTAssertEqual(state.selectedStation, .radioDanz)
         XCTAssertEqual(state.selectedStation.badgeLabel, "DANZ")
         XCTAssertEqual(state.selectedStream.station, .radioDanz)
+        XCTAssertEqual(state.toolbarStatusLabel, "DANZ")
+
+        XCTAssertTrue(state.handleToolbarStatusTap(autoPlayIfCurrentlyPlaying: false) {
+            settingsOpenCount += 1
+        })
+        XCTAssertEqual(settingsOpenCount, 1)
+        XCTAssertEqual(state.selectedStation, .chilltrax)
+        XCTAssertEqual(state.toolbarStatusLabel, "TRAX")
+
+        // Clicking toolbar status while PAUSED opens Settings without switching stations
+        state.radioPlayer.setSimulatedPlaybackStateForTesting(isPlaying: false, status: .paused)
+        XCTAssertEqual(state.toolbarStatusLabel, "PAUSED")
+        XCTAssertFalse(state.handleToolbarStatusTap(autoPlayIfCurrentlyPlaying: false) {
+            settingsOpenCount += 1
+        })
+        XCTAssertEqual(settingsOpenCount, 2)
+        XCTAssertEqual(state.selectedStation, .chilltrax)
 
         state.selectStation(.chilltrax)
         XCTAssertEqual(state.selectedStation, .chilltrax)

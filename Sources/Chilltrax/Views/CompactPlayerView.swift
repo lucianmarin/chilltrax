@@ -120,13 +120,15 @@ public struct CompactPlayerView: View {
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button(action: {
-                    openSettings()
-                    NSApp.activate(ignoringOtherApps: true)
+                    appState.handleToolbarStatusTap {
+                        openSettings()
+                        NSApp.activate(ignoringOtherApps: true)
+                    }
                 }) {
                     statusBadge
                 }
                 .buttonStyle(.plain)
-                .help("Station Status: \(appState.radioPlayer.status.rawValue) — Click to Open Settings (⌘,)")
+                .help(statusBadgeHelpText)
             }
 
             ToolbarItemGroup(placement: .primaryAction) {
@@ -303,7 +305,7 @@ public struct CompactPlayerView: View {
             Circle()
                 .fill(statusColor)
                 .frame(width: 7, height: 7)
-            Text(appState.radioPlayer.status.rawValue.uppercased())
+            Text(appState.toolbarStatusLabel)
                 .font(.system(size: 10.5, weight: .bold, design: .rounded))
                 .foregroundStyle(statusColor)
         }
@@ -311,6 +313,13 @@ public struct CompactPlayerView: View {
         .padding(.vertical, 4)
         .background(statusColor.opacity(0.14), in: Capsule())
         .contentShape(Capsule())
+    }
+
+    private var statusBadgeHelpText: String {
+        if appState.canSwitchStationFromToolbarStatus {
+            return "Station Status: \(appState.toolbarStatusLabel) — Click to Switch to \(appState.selectedStation.nextStation.title)"
+        }
+        return "Station Status: \(appState.toolbarStatusLabel) — Click to Open Settings (⌘,)"
     }
 
     private var statusColor: Color {

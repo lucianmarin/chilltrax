@@ -14,7 +14,7 @@ Chilltrax is a native macOS radio player built with SwiftUI and AVFoundation for
 3. **Real-Time Audio Visualizer (Waveform or Spectrum)**:
    - Interactive visualizer supporting both **Waveform** and **Spectrum** modes, switchable directly from the player or Settings.
 4. **Playback Controls & Current Song Display**:
-   - Play / Pause toggle (plays at maximum volume `1.0` so system volume controls audio level), left-aligned toolbar station status badge (`READY` / `LIVE` / `PAUSED` / `CONNECTING…` / `ERROR`) that opens the Settings panel when clicked, current song title, artist, album/mix badge, and album cover that shows an Apple logo on mouse hover to open the song on Apple Music.
+   - Play / Pause toggle (plays at maximum volume `1.0` so system volume controls audio level), left-aligned toolbar station status badge (`READY` / `TRAX` or `DANZ` / `PAUSED` / `CONNECTING…` / `ERROR`) that switches between Chilltrax and Radio Danz when `TRAX` or `DANZ` is clicked and opens the Settings panel for other statuses, current song title, artist, album/mix badge, and album cover that shows an Apple logo on mouse hover to open the song on Apple Music.
 5. **Album Cover Fetching & Local Cover Cache**:
    - Toggleable setting to fetch and display the currently playing song's album artwork from the active station (`chilltrax.com` or `radiodanz.com`), caching fetched history covers locally on disk (`~/Library/Application Support/Chilltrax/Covers`) and deleting them when clearing history.
 6. **macOS Notifications on Song Change**:

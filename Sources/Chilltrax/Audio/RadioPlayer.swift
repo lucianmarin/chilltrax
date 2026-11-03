@@ -12,6 +12,15 @@ public final class RadioPlayer: NSObject, ObservableObject {
         case playing = "Live"
         case paused = "Paused"
         case error = "Stream Error"
+
+        public func toolbarLabel(for station: RadioStation) -> String {
+            switch self {
+            case .playing:
+                return station.badgeLabel
+            case .idle, .buffering, .paused, .error:
+                return rawValue.uppercased()
+            }
+        }
     }
 
     @Published public private(set) var isPlaying: Bool = false

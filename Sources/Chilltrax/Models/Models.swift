@@ -51,6 +51,13 @@ public enum RadioStation: String, CaseIterable, Codable, Identifiable, Sendable 
         }
     }
 
+    public var nextStation: RadioStation {
+        switch self {
+        case .chilltrax: return .radioDanz
+        case .radioDanz: return .chilltrax
+        }
+    }
+
     public var domain: String {
         switch self {
         case .chilltrax: return "chilltrax.com"

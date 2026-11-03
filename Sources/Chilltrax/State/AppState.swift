@@ -170,6 +170,14 @@ public final class AppState: ObservableObject {
         stationAPIEndpoints[selectedStation] ?? selectedStation.defaultAPIEndpoints
     }
 
+    public var toolbarStatusLabel: String {
+        radioPlayer.status.toolbarLabel(for: selectedStation)
+    }
+
+    public var canSwitchStationFromToolbarStatus: Bool {
+        radioPlayer.status == .playing
+    }
+
     public var allAvailableStreams: [StationStream] {
         var combined = streamsForSelectedStation
         for custom in customStreams where !combined.contains(where: { $0.urlString.caseInsensitiveCompare(custom.urlString) == .orderedSame }) {
@@ -346,6 +354,24 @@ public final class AppState: ObservableObject {
             hasRecordedCurrentSongInHistory = false
         }
         selectStream(targetStream, autoPlayIfCurrentlyPlaying: autoPlayIfCurrentlyPlaying)
+    }
+
+    public func toggleStation(autoPlayIfCurrentlyPlaying: Bool = true) {
+        selectStation(selectedStation.nextStation, autoPlayIfCurrentlyPlaying: autoPlayIfCurrentlyPlaying)
+    }
+
+    @discardableResult
+    public func handleToolbarStatusTap(
+        autoPlayIfCurrentlyPlaying: Bool = true,
+        openSettings: () -> Void
+    ) -> Bool {
+        if canSwitchStationFromToolbarStatus {
+            toggleStation(autoPlayIfCurrentlyPlaying: autoPlayIfCurrentlyPlaying)
+            return true
+        } else {
+            openSettings()
+            return false
+        }
     }
 
     public func selectStream(_ stream: StationStream, autoPlayIfCurrentlyPlaying: Bool = true) {
