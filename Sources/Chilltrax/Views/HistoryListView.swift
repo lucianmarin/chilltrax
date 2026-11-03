@@ -17,37 +17,33 @@ public struct HistoryListView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // History List Content
             if appState.filteredHistoryEntries.isEmpty {
-                VStack(spacing: 8) {
-                    Spacer()
+                HStack(spacing: 8) {
                     Image(systemName: appState.historyEntries.isEmpty ? "clock.arrow.circlepath" : "magnifyingglass")
-                        .font(.system(size: 26))
+                        .font(.system(size: 13))
                         .foregroundStyle(.tertiary)
                     Text(appState.historyEntries.isEmpty ? "No songs recorded yet" : "No matching songs in history")
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 12.5, weight: .medium))
                         .foregroundStyle(.secondary)
-                    Text(
-                        appState.historyEntries.isEmpty
-                            ? "Songs you listen to are automatically saved to a compressed local history file."
-                            : "Try searching for a different artist, song title, or album."
-                    )
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(.tertiary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
                     Spacer()
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, 16)
+                .frame(height: ChilltraxTheme.historyRowHeight)
             } else {
-                List(appState.filteredHistoryEntries) { entry in
-                    HistoryRowView(
-                        entry: entry,
-                        showCover: appState.fetchAlbumCoverFromChilltrax,
-                        formattedDate: Self.timeFormatter.string(from: entry.playedAt)
-                    )
+                ScrollView(.vertical, showsIndicators: appState.filteredHistoryEntries.count > ChilltraxTheme.maxVisibleHistoryRows) {
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(appState.filteredHistoryEntries.enumerated()), id: \.element.id) { index, entry in
+                            HistoryRowView(
+                                entry: entry,
+                                showCover: appState.fetchAlbumCoverFromChilltrax,
+                                formattedDate: Self.timeFormatter.string(from: entry.playedAt),
+                                showBottomDivider: index < appState.filteredHistoryEntries.count - 1
+                            )
+                            .frame(height: ChilltraxTheme.historyRowHeight)
+                        }
+                    }
                 }
-                .listStyle(.inset)
+                .frame(height: ChilltraxTheme.historyListHeight(forResultCount: appState.filteredHistoryEntries.count))
             }
         }
     }
@@ -57,6 +53,7 @@ private struct HistoryRowView: View {
     let entry: SongHistoryEntry
     let showCover: Bool
     let formattedDate: String
+    let showBottomDivider: Bool
 
     var body: some View {
         HStack(spacing: 10) {
@@ -125,7 +122,15 @@ private struct HistoryRowView: View {
                 }
             }
         }
-        .padding(.vertical, 2)
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .bottom) {
+            if showBottomDivider {
+                Divider()
+                    .padding(.leading, 16)
+            }
+        }
+        .contentShape(Rectangle())
         .contextMenu {
             Button("Copy Song Name") {
                 NSPasteboard.general.clearContents()

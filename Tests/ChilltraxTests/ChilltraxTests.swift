@@ -268,22 +268,39 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertEqual(window.minSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
         XCTAssertEqual(window.maxSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
 
-        // Expand history
+        // Expand history with 2 results
+        state.handleIncomingSongMetadata(
+            SongMetadata(artist: "Air", title: "All I Need", albumOrMix: "Moon Safari"),
+            sourceIsICY: false
+        )
+        state.handleIncomingSongMetadata(
+            SongMetadata(artist: "Bonobo", title: "Cirrus", albumOrMix: "The North Borders"),
+            sourceIsICY: false
+        )
         state.isHistoryExpanded = true
         hostingController.view.layoutSubtreeIfNeeded()
-        coordinator.syncSize(isExpanded: true, on: window)
+        coordinator.syncSize(isExpanded: true, resultCount: state.filteredHistoryEntries.count, on: window)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        let twoResultsHeight = ChilltraxTheme.contentHeight(isExpanded: true, resultCount: 2)
+        XCTAssertEqual(window.frame.maxY, initialTopY, accuracy: 1.0)
+        XCTAssertEqual(window.contentLayoutRect.height, twoResultsHeight, accuracy: 1.0)
+        XCTAssertFalse(window.styleMask.contains(.resizable))
+        XCTAssertEqual(window.minSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
+        XCTAssertEqual(window.maxSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
+
+        // Expand history with > 6 results (capped at 6 visible rows)
+        coordinator.syncSize(isExpanded: true, resultCount: 10, on: window)
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
 
         XCTAssertEqual(window.frame.maxY, initialTopY, accuracy: 1.0)
         XCTAssertEqual(window.contentLayoutRect.height, ChilltraxTheme.expandedHeight, accuracy: 1.0)
-        XCTAssertTrue(window.styleMask.contains(.resizable))
-        XCTAssertEqual(window.minSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
-        XCTAssertEqual(window.maxSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
+        XCTAssertFalse(window.styleMask.contains(.resizable))
 
         // Collapse history
         state.isHistoryExpanded = false
         hostingController.view.layoutSubtreeIfNeeded()
-        coordinator.syncSize(isExpanded: false, on: window)
+        coordinator.syncSize(isExpanded: false, resultCount: 10, on: window)
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
 
         XCTAssertEqual(window.frame.maxY, initialTopY, accuracy: 1.0)

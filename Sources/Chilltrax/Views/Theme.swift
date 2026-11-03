@@ -17,7 +17,19 @@ public enum ChilltraxTheme {
 
     public static let compactWidth: CGFloat = 480
     public static let compactHeight: CGFloat = 216
-    public static let expandedHeight: CGFloat = 520
+    public static let historyRowHeight: CGFloat = 48
+    public static let maxVisibleHistoryRows: Int = 6
+    public static let expandedHeight: CGFloat = compactHeight + 1 + CGFloat(maxVisibleHistoryRows) * historyRowHeight
+
+    public static func historyListHeight(forResultCount count: Int) -> CGFloat {
+        let visibleRows = max(1, min(count, maxVisibleHistoryRows))
+        return CGFloat(visibleRows) * historyRowHeight
+    }
+
+    public static func contentHeight(isExpanded: Bool, resultCount: Int) -> CGFloat {
+        guard isExpanded else { return compactHeight }
+        return compactHeight + 1 + historyListHeight(forResultCount: resultCount)
+    }
 }
 
 public struct WindowAccessor: NSViewRepresentable {
@@ -47,13 +59,22 @@ public struct WindowAccessor: NSViewRepresentable {
         view.onWindowEvent = { [weak coordinator = context.coordinator] window in
             guard let coordinator else { return }
             coordinator.configure(window: window)
-            coordinator.syncSize(isExpanded: coordinator.currentExpanded, on: window)
+            coordinator.syncSize(
+                isExpanded: coordinator.currentExpanded,
+                resultCount: coordinator.currentResultCount,
+                on: window
+            )
         }
         context.coordinator.currentExpanded = isHistoryExpanded
+        context.coordinator.currentResultCount = historyCount
         DispatchQueue.main.async {
             if let window = view.window {
                 context.coordinator.configure(window: window)
-                context.coordinator.syncSize(isExpanded: isHistoryExpanded, on: window)
+                context.coordinator.syncSize(
+                    isExpanded: isHistoryExpanded,
+                    resultCount: historyCount,
+                    on: window
+                )
             }
         }
         return view
@@ -61,14 +82,23 @@ public struct WindowAccessor: NSViewRepresentable {
 
     public func updateNSView(_ nsView: NSView, context: Context) {
         context.coordinator.currentExpanded = isHistoryExpanded
+        context.coordinator.currentResultCount = historyCount
         if let window = nsView.window {
             context.coordinator.configure(window: window)
-            context.coordinator.syncSize(isExpanded: isHistoryExpanded, on: window)
+            context.coordinator.syncSize(
+                isExpanded: isHistoryExpanded,
+                resultCount: historyCount,
+                on: window
+            )
         }
         DispatchQueue.main.async {
             guard let window = nsView.window else { return }
             context.coordinator.configure(window: window)
-            context.coordinator.syncSize(isExpanded: isHistoryExpanded, on: window)
+            context.coordinator.syncSize(
+                isExpanded: isHistoryExpanded,
+                resultCount: historyCount,
+                on: window
+            )
         }
     }
 
@@ -107,7 +137,9 @@ public struct WindowAccessor: NSViewRepresentable {
 
     public final class Coordinator {
         var currentExpanded: Bool = false
+        var currentResultCount: Int = 0
         var lastAppliedExpanded: Bool?
+        var lastAppliedTargetContentHeight: CGFloat?
         var configuredWindowNumbers = Set<Int>()
 
         @MainActor
@@ -119,6 +151,8 @@ public struct WindowAccessor: NSViewRepresentable {
                 window.titlebarAppearsTransparent = false
                 window.toolbarStyle = .unified
                 window.styleMask.insert(.fullSizeContentView)
+                window.styleMask.remove(.resizable)
+                window.standardWindowButton(.zoomButton)?.isEnabled = false
                 window.isMovableByWindowBackground = true
             }
 
@@ -135,21 +169,30 @@ public struct WindowAccessor: NSViewRepresentable {
         }
 
         @MainActor
-        func syncSize(isExpanded: Bool, on window: NSWindow) {
+        func syncSize(
+            isExpanded: Bool,
+            resultCount: Int = ChilltraxTheme.maxVisibleHistoryRows,
+            on window: NSWindow
+        ) {
             currentExpanded = isExpanded
+            currentResultCount = resultCount
+
             let toolbarInset = max(0, window.frame.height - window.contentLayoutRect.height)
-            let targetContentHeight = isExpanded ? ChilltraxTheme.expandedHeight : ChilltraxTheme.compactHeight
+            let targetContentHeight = ChilltraxTheme.contentHeight(
+                isExpanded: isExpanded,
+                resultCount: resultCount
+            )
             let targetWindowHeight = targetContentHeight + toolbarInset
             let fixedWidth = ChilltraxTheme.compactWidth
-            let minContentHeight: CGFloat = isExpanded ? 320 : ChilltraxTheme.compactHeight
-            let maxContentHeight: CGFloat = isExpanded ? 900 : ChilltraxTheme.compactHeight
 
             let expandedChanged = (lastAppliedExpanded != isExpanded)
+            let heightChanged = (lastAppliedTargetContentHeight != targetContentHeight)
             let widthDrifted = abs(window.frame.width - fixedWidth) > 0.5
-            let compactHeightDrifted = !isExpanded && abs(window.frame.height - targetWindowHeight) > 0.5
+            let frameHeightDrifted = abs(window.frame.height - targetWindowHeight) > 0.5
 
-            if expandedChanged || widthDrifted || compactHeightDrifted {
+            if expandedChanged || heightChanged || widthDrifted || frameHeightDrifted {
                 lastAppliedExpanded = isExpanded
+                lastAppliedTargetContentHeight = targetContentHeight
 
                 // Relax vertical min/max constraints first so setFrame never fights active window limits
                 window.minSize = NSSize(
@@ -158,40 +201,31 @@ public struct WindowAccessor: NSViewRepresentable {
                 )
                 window.maxSize = NSSize(
                     width: fixedWidth,
-                    height: 900 + toolbarInset
+                    height: ChilltraxTheme.expandedHeight + toolbarInset
                 )
 
                 var targetFrame = window.frame
                 targetFrame.size.width = fixedWidth
-                if expandedChanged || !isExpanded {
-                    targetFrame.size.height = targetWindowHeight
-                    // Keep top edge of the window anchored in place on screen when expanding/collapsing
-                    targetFrame.origin.y = window.frame.maxY - targetWindowHeight
-                }
+                targetFrame.size.height = targetWindowHeight
+                // Keep top edge of the window anchored in place on screen when expanding/collapsing
+                targetFrame.origin.y = window.frame.maxY - targetWindowHeight
 
                 window.setFrame(targetFrame, display: true, animate: false)
             }
 
-            // Always enforce styleMask and horizontal/vertical size locks after NSHostingView layout passes
-            if isExpanded {
-                if !window.styleMask.contains(.resizable) {
-                    window.styleMask.insert(.resizable)
-                }
-                window.standardWindowButton(.zoomButton)?.isEnabled = true
-            } else {
-                if window.styleMask.contains(.resizable) {
-                    window.styleMask.remove(.resizable)
-                }
-                window.standardWindowButton(.zoomButton)?.isEnabled = false
+            // Disable window resizing both vertically and horizontally in all modes
+            if window.styleMask.contains(.resizable) {
+                window.styleMask.remove(.resizable)
             }
+            window.standardWindowButton(.zoomButton)?.isEnabled = false
 
             window.minSize = NSSize(
                 width: fixedWidth,
-                height: minContentHeight + toolbarInset
+                height: targetWindowHeight
             )
             window.maxSize = NSSize(
                 width: fixedWidth,
-                height: maxContentHeight + toolbarInset
+                height: targetWindowHeight
             )
         }
     }

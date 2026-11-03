@@ -97,10 +97,10 @@ public struct CompactPlayerView: View {
             if appState.isHistoryExpanded {
                 Divider()
                 HistoryListView(appState: appState)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                Spacer(minLength: 0)
+                    .frame(maxWidth: .infinity)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            Spacer(minLength: 0)
         }
         .frame(
             minWidth: ChilltraxTheme.compactWidth,
@@ -115,7 +115,7 @@ public struct CompactPlayerView: View {
         .background(
             WindowAccessor(
                 isHistoryExpanded: appState.isHistoryExpanded,
-                historyCount: appState.historyEntries.count,
+                historyCount: appState.filteredHistoryEntries.count,
                 visualizerMode: appState.visualizerMode,
                 playbackStatus: appState.radioPlayer.status
             )
