@@ -2,21 +2,31 @@ import Foundation
 
 public enum VisualizerMode: String, CaseIterable, Codable, Identifiable, Sendable {
     case waveform = "waveform"
-    case bars = "bars"
+    case spectrum = "spectrum"
+
+    public static var bars: VisualizerMode { .spectrum }
+
+    public init?(persistedRawValue: String) {
+        if persistedRawValue == "bars" {
+            self = .spectrum
+        } else {
+            self.init(rawValue: persistedRawValue)
+        }
+    }
 
     public var id: String { rawValue }
 
     public var title: String {
         switch self {
         case .waveform: return "Waveform"
-        case .bars: return "Bars"
+        case .spectrum: return "Spectrum"
         }
     }
 
     public var systemImage: String {
         switch self {
         case .waveform: return "waveform.path.ecg"
-        case .bars: return "chart.bar.xaxis"
+        case .spectrum: return "chart.bar.xaxis"
         }
     }
 }

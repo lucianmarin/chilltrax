@@ -137,7 +137,7 @@ public struct CompactPlayerView: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                .help("Visualizer Mode (Waveform or Bars)")
+                .help("Visualizer Mode (Waveform or Spectrum)")
 
                 Button(action: {
                     appState.toggleHistoryExpanded()

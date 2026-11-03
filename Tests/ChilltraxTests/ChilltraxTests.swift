@@ -164,7 +164,8 @@ final class ChilltraxTests: XCTestCase {
         )
 
         // Test visualizer mode toggle
-        XCTAssertEqual(state.visualizerMode, .bars)
+        XCTAssertEqual(state.visualizerMode, .spectrum)
+        XCTAssertEqual(state.visualizerMode.title, "Spectrum")
         state.toggleVisualizerMode()
         XCTAssertEqual(state.visualizerMode, .waveform)
 
@@ -354,14 +355,14 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertLessThan(quietAvg, mediumAvg)
         XCTAssertLessThan(mediumAvg, loudAvg)
 
-        // 2. Verify Bars visualizer height & Waveform visualizer vertical span both scale monotonically with music intensity
+        // 2. Verify Spectrum visualizer height & Waveform visualizer vertical span both scale monotonically with music intensity
         let canvasSize = CGSize(width: 452, height: 68)
-        let barsQuietHeight = VisualizerView.barsAverageHeight(levels: quietLevels, size: canvasSize)
-        let barsMediumHeight = VisualizerView.barsAverageHeight(levels: mediumLevels, size: canvasSize)
-        let barsLoudHeight = VisualizerView.barsAverageHeight(levels: loudLevels, size: canvasSize)
+        let spectrumQuietHeight = VisualizerView.spectrumAverageHeight(levels: quietLevels, size: canvasSize)
+        let spectrumMediumHeight = VisualizerView.spectrumAverageHeight(levels: mediumLevels, size: canvasSize)
+        let spectrumLoudHeight = VisualizerView.spectrumAverageHeight(levels: loudLevels, size: canvasSize)
 
-        XCTAssertLessThan(barsQuietHeight, barsMediumHeight)
-        XCTAssertLessThan(barsMediumHeight, barsLoudHeight)
+        XCTAssertLessThan(spectrumQuietHeight, spectrumMediumHeight)
+        XCTAssertLessThan(spectrumMediumHeight, spectrumLoudHeight)
 
         let waveQuietSpan = VisualizerView.waveformPeakVerticalSpan(levels: quietLevels, phase: 1.2, size: canvasSize)
         let waveMediumSpan = VisualizerView.waveformPeakVerticalSpan(levels: mediumLevels, phase: 1.2, size: canvasSize)
@@ -370,7 +371,7 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertLessThan(waveQuietSpan, waveMediumSpan)
         XCTAssertLessThan(waveMediumSpan, waveLoudSpan)
 
-        // 3. Verify rendered output of both .bars and .waveform visualizers increases active pixel energy with intensity
+        // 3. Verify rendered output of both .spectrum and .waveform visualizers increases active pixel energy with intensity
         func countActivePixels(mode: VisualizerMode, levels: [CGFloat]) -> Int {
             let view = VisualizerView(mode: mode, levels: levels, phase: 1.2, isPlaying: true)
                 .environment(\.colorScheme, .light)
@@ -400,9 +401,9 @@ final class ChilltraxTests: XCTestCase {
             return nonWhitePixels
         }
 
-        let barsQuietPixels = countActivePixels(mode: .bars, levels: quietLevels)
-        let barsMediumPixels = countActivePixels(mode: .bars, levels: mediumLevels)
-        let barsLoudPixels = countActivePixels(mode: .bars, levels: loudLevels)
+        let barsQuietPixels = countActivePixels(mode: .spectrum, levels: quietLevels)
+        let barsMediumPixels = countActivePixels(mode: .spectrum, levels: mediumLevels)
+        let barsLoudPixels = countActivePixels(mode: .spectrum, levels: loudLevels)
         XCTAssertLessThan(barsQuietPixels, barsMediumPixels)
         XCTAssertLessThan(barsMediumPixels, barsLoudPixels)
 

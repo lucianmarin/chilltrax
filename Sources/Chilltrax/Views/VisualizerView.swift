@@ -35,8 +35,8 @@ public struct VisualizerView: View {
         ZStack(alignment: .topTrailing) {
             Canvas { context, size in
                 switch mode {
-                case .bars:
-                    drawBars(context: &context, size: size)
+                case .spectrum:
+                    drawSpectrum(context: &context, size: size)
                 case .waveform:
                     drawWaveform(context: &context, size: size)
                 }
@@ -58,7 +58,7 @@ public struct VisualizerView: View {
                 }
                 .buttonStyle(.plain)
                 .padding(6)
-                .help("Switch visualizer between Waveform and Bars")
+                .help("Switch visualizer between Waveform and Spectrum")
             }
         }
         .background(
@@ -87,7 +87,7 @@ public struct VisualizerView: View {
         return max(0.08, min(1.0, interpolated))
     }
 
-    public static func barsAverageHeight(levels: [CGFloat], size: CGSize) -> CGFloat {
+    public static func spectrumAverageHeight(levels: [CGFloat], size: CGSize) -> CGFloat {
         let verticalPadding: CGFloat = 8
         let usableHeight = max(8, size.height - verticalPadding * 2)
         guard !levels.isEmpty else { return 4 }
@@ -96,6 +96,10 @@ public struct VisualizerView: View {
             return partial + max(4, usableHeight * clamped)
         }
         return total / CGFloat(levels.count)
+    }
+
+    public static func barsAverageHeight(levels: [CGFloat], size: CGSize) -> CGFloat {
+        spectrumAverageHeight(levels: levels, size: size)
     }
 
     public static func waveformPeakVerticalSpan(levels: [CGFloat], phase: Double, size: CGSize) -> CGFloat {
@@ -129,7 +133,7 @@ public struct VisualizerView: View {
         return maxY - minY
     }
 
-    private func drawBars(context: inout GraphicsContext, size: CGSize) {
+    private func drawSpectrum(context: inout GraphicsContext, size: CGSize) {
         let count = max(1, levels.count)
         let horizontalPadding: CGFloat = 10
         let verticalPadding: CGFloat = 8

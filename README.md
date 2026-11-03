@@ -11,8 +11,8 @@ Chilltrax is a native macOS one-radio-station player built with SwiftUI and AVFo
 2. **Station Stream Discovery & Custom Stream Configuration**:
    - **Find Broadcast from `chilltrax.com`**: Queries and parses `https://www.chilltrax.com` in Settings to discover official broadcast streams (including the firewall-friendly SSL stream and Shoutcast streams), resolving `.pls` and redirect endpoints automatically.
    - **Custom Station URL**: Allows configuring and switching to any custom radio stream URL (HTTP/HTTPS MP3, AAC+, HLS, or `.pls` playlist).
-3. **Real-Time Audio Visualizer (Waveform or Bars)**:
-   - Interactive visualizer supporting both **Waveform** (smooth multi-layered oscillating sine/audio wave) and **Bars** (frequency spectrum bars) modes, switchable directly from the player or Settings.
+3. **Real-Time Audio Visualizer (Waveform or Spectrum)**:
+   - Interactive visualizer supporting both **Waveform** (smooth multi-layered oscillating sine/audio wave) and **Spectrum** (frequency over time across vertical bars with bass on the left, mids in the middle, and treble on the right) modes, switchable directly from the player or Settings.
 4. **Playback Controls & Current Song Display**:
    - Play / Pause toggle (plays at maximum volume `1.0` so system volume controls audio level), left-aligned toolbar station status badge (`READY` / `LIVE` / `PAUSED` / `CONNECTING…` / `ERROR`) that opens the Settings panel when clicked, current song title, artist, album/mix badge, and album cover that shows an Apple logo on mouse hover to open the song on Apple Music.
 5. **Album Cover Fetching Setting**:
@@ -32,7 +32,7 @@ Chilltrax is a native macOS one-radio-station player built with SwiftUI and AVFo
 - [x] Compressed text file history persistence (`CompressedHistoryStore` using `LZFSE`-compressed TSV text)
 - [x] Chilltrax website stream discovery & live metadata/cover client (`ChilltraxClient`)
 - [x] Audio stream player (`AVPlayer` + ICY `AVPlayerItemMetadataOutput` + `.pls` resolver + visualizer engine + `UNUserNotificationCenter` notifications)
-- [x] Compact player UI with Waveform / Bars visualizer & album cover art (`CompactPlayerView`, `VisualizerView`)
+- [x] Compact player UI with Waveform / Spectrum visualizer & album cover art (`CompactPlayerView`, `VisualizerView`)
 - [x] Expandable searchable song history view toggled via SF Symbol (`HistoryListView`)
 - [x] Settings window for discovering `chilltrax.com` broadcasts, custom stream URLs, visualizer mode, notifications, and album cover fetching (`SettingsView`)
 - [x] Unit test suite (`Tests/ChilltraxTests/ChilltraxTests.swift`)

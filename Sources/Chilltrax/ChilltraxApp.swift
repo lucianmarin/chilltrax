@@ -38,7 +38,7 @@ struct ChilltraxApp: App {
 
                 Divider()
 
-                Button("Toggle Visualizer (Waveform / Bars)") {
+                Button("Toggle Visualizer (Waveform / Spectrum)") {
                     appState.toggleVisualizerMode()
                 }
                 .keyboardShortcut("v", modifiers: [.command, .shift])

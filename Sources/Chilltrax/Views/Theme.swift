@@ -41,7 +41,7 @@ public struct WindowAccessor: NSViewRepresentable {
     public init(
         isHistoryExpanded: Bool,
         historyCount: Int = 0,
-        visualizerMode: VisualizerMode = .bars,
+        visualizerMode: VisualizerMode = .spectrum,
         playbackStatus: RadioPlayer.PlaybackStatus = .idle
     ) {
         self.isHistoryExpanded = isHistoryExpanded

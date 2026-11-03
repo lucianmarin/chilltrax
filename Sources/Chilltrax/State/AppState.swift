@@ -220,10 +220,10 @@ public final class AppState: ObservableObject {
         }
 
         if let modeRaw = defaults.string(forKey: DefaultsKeys.visualizerMode),
-           let mode = VisualizerMode(rawValue: modeRaw) {
+           let mode = VisualizerMode(persistedRawValue: modeRaw) {
             self.visualizerMode = mode
         } else {
-            self.visualizerMode = .bars
+            self.visualizerMode = .spectrum
         }
 
         if defaults.object(forKey: DefaultsKeys.notifyOnSongChange) != nil {
@@ -334,7 +334,7 @@ public final class AppState: ObservableObject {
     }
 
     public func toggleVisualizerMode() {
-        visualizerMode = visualizerMode == .bars ? .waveform : .bars
+        visualizerMode = visualizerMode == .spectrum ? .waveform : .spectrum
     }
 
     public func toggleHistoryExpanded() {
