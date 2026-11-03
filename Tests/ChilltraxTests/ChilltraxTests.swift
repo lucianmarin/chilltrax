@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import Chilltrax
 
 final class ChilltraxTests: XCTestCase {
@@ -222,36 +223,73 @@ final class ChilltraxTests: XCTestCase {
         let placeholderData = AppIcon.renderPlaceholderPNGData(pixelSize: 240)
         XCTAssertNotNil(placeholderData)
         XCTAssertGreaterThan(placeholderData?.count ?? 0, 1_000)
+
+        XCTAssertEqual(ChilltraxTheme.visualizerBackground(for: .light), ChilltraxTheme.visualizerWhite)
+        XCTAssertEqual(ChilltraxTheme.visualizerContrastColor(for: .light), ChilltraxTheme.visualizerBlack)
+        XCTAssertEqual(ChilltraxTheme.visualizerBackground(for: .dark), ChilltraxTheme.visualizerBlack)
+        XCTAssertEqual(ChilltraxTheme.visualizerContrastColor(for: .dark), ChilltraxTheme.visualizerWhite)
     }
 
     @MainActor
     func testWindowExpandCollapsePreservesTopEdgeAndLayoutHeight() {
+        let suiteName = "ChilltraxWindowTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let tempFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("window-history-\(UUID().uuidString).tsv.zlib")
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        let state = AppState(
+            historyStore: CompressedHistoryStore(fileURL: tempFile),
+            defaults: defaults,
+            startPollingAutomatically: false
+        )
+
+        let hostingController = NSHostingController(rootView: CompactPlayerView(appState: state))
         let window = NSWindow(
             contentRect: NSRect(x: 200, y: 400, width: ChilltraxTheme.compactWidth, height: ChilltraxTheme.compactHeight),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
+        window.toolbar = NSToolbar(identifier: "TestToolbar")
+        window.contentViewController = hostingController
+        hostingController.view.layoutSubtreeIfNeeded()
+
         let coordinator = WindowAccessor.Coordinator()
         coordinator.configure(window: window)
         coordinator.syncSize(isExpanded: false, on: window)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
 
         let initialTopY = window.frame.maxY
         XCTAssertEqual(window.contentLayoutRect.height, ChilltraxTheme.compactHeight, accuracy: 1.0)
         XCTAssertFalse(window.styleMask.contains(.resizable))
+        XCTAssertEqual(window.minSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
         XCTAssertEqual(window.maxSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
 
         // Expand history
+        state.isHistoryExpanded = true
+        hostingController.view.layoutSubtreeIfNeeded()
         coordinator.syncSize(isExpanded: true, on: window)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
         XCTAssertEqual(window.frame.maxY, initialTopY, accuracy: 1.0)
         XCTAssertEqual(window.contentLayoutRect.height, ChilltraxTheme.expandedHeight, accuracy: 1.0)
         XCTAssertTrue(window.styleMask.contains(.resizable))
+        XCTAssertEqual(window.minSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
         XCTAssertEqual(window.maxSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
 
         // Collapse history
+        state.isHistoryExpanded = false
+        hostingController.view.layoutSubtreeIfNeeded()
         coordinator.syncSize(isExpanded: false, on: window)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
         XCTAssertEqual(window.frame.maxY, initialTopY, accuracy: 1.0)
         XCTAssertEqual(window.contentLayoutRect.height, ChilltraxTheme.compactHeight, accuracy: 1.0)
         XCTAssertFalse(window.styleMask.contains(.resizable))
+        XCTAssertEqual(window.minSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
+        XCTAssertEqual(window.maxSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
     }
 }

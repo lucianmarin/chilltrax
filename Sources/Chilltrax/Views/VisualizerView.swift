@@ -1,6 +1,8 @@
 import SwiftUI
 
 public struct VisualizerView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     public let mode: VisualizerMode
     public let levels: [CGFloat]
     public let phase: Double
@@ -19,6 +21,14 @@ public struct VisualizerView: View {
         self.phase = phase
         self.isPlaying = isPlaying
         self.onToggleMode = onToggleMode
+    }
+
+    private var backgroundColor: Color {
+        ChilltraxTheme.visualizerBackground(for: colorScheme)
+    }
+
+    private var contrastColor: Color {
+        ChilltraxTheme.visualizerContrastColor(for: colorScheme)
     }
 
     public var body: some View {
@@ -41,10 +51,10 @@ public struct VisualizerView: View {
                         Text(mode.title)
                             .font(.system(size: 10, weight: .medium))
                     }
-                    .foregroundStyle(Color.black.opacity(0.75))
+                    .foregroundStyle(contrastColor.opacity(0.75))
                     .padding(.horizontal, 7)
                     .padding(.vertical, 3)
-                    .background(Color.black.opacity(0.07), in: Capsule())
+                    .background(contrastColor.opacity(0.07), in: Capsule())
                 }
                 .buttonStyle(.plain)
                 .padding(6)
@@ -53,10 +63,10 @@ public struct VisualizerView: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(ChilltraxTheme.visualizerWhite)
+                .fill(backgroundColor)
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(Color.black.opacity(0.12), lineWidth: 1)
+                        .strokeBorder(contrastColor.opacity(0.14), lineWidth: 1)
                 )
         )
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -71,6 +81,7 @@ public struct VisualizerView: View {
         let spacing: CGFloat = 3.5
         let totalSpacing = spacing * CGFloat(count - 1)
         let barWidth = max(2.5, (usableWidth - totalSpacing) / CGFloat(count))
+        let secondaryBarColor = contrastColor
 
         for (index, rawLevel) in levels.enumerated() {
             let clamped = max(0.08, min(1.0, rawLevel))
@@ -84,11 +95,11 @@ public struct VisualizerView: View {
             let isAccentBar = (index % 2 == 0) || (clamped > 0.65)
             let barColor: Color
             if isPlaying {
-                barColor = isAccentBar ? ChilltraxTheme.accentRed : ChilltraxTheme.visualizerBlack
+                barColor = isAccentBar ? ChilltraxTheme.accentRed : secondaryBarColor
             } else {
                 barColor = (index % 2 == 0)
                     ? ChilltraxTheme.accentRed.opacity(0.55)
-                    : ChilltraxTheme.visualizerBlack.opacity(0.35)
+                    : secondaryBarColor.opacity(0.35)
             }
 
             context.fill(path, with: .color(barColor))
@@ -99,6 +110,7 @@ public struct VisualizerView: View {
         let midY = size.height / 2.0
         let usableAmplitude = (size.height * 0.42)
         let steps = max(64, Int(size.width / 3))
+        let secondaryWaveColor = contrastColor
 
         let averageLevel: CGFloat = {
             guard !levels.isEmpty else { return 0.1 }
@@ -106,8 +118,8 @@ public struct VisualizerView: View {
             return sum / CGFloat(levels.count)
         }()
 
-        // Secondary black harmonic wave
-        var blackWavePath = Path()
+        // Secondary harmonic wave (black in light mode, white in dark mode)
+        var contrastWavePath = Path()
         for step in 0...steps {
             let progress = CGFloat(step) / CGFloat(steps)
             let x = progress * size.width
@@ -119,15 +131,15 @@ public struct VisualizerView: View {
             let amplitude = Double(usableAmplitude) * Double(max(0.06, binLevel * 0.8)) * window
             let y = midY + CGFloat(wave * amplitude)
             if step == 0 {
-                blackWavePath.move(to: CGPoint(x: x, y: y))
+                contrastWavePath.move(to: CGPoint(x: x, y: y))
             } else {
-                blackWavePath.addLine(to: CGPoint(x: x, y: y))
+                contrastWavePath.addLine(to: CGPoint(x: x, y: y))
             }
         }
 
         context.stroke(
-            blackWavePath,
-            with: .color(ChilltraxTheme.visualizerBlack.opacity(isPlaying ? 0.85 : 0.45)),
+            contrastWavePath,
+            with: .color(secondaryWaveColor.opacity(isPlaying ? 0.85 : 0.45)),
             style: StrokeStyle(lineWidth: 2.0, lineCap: .round, lineJoin: .round)
         )
 

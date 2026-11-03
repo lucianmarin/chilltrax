@@ -3,6 +3,7 @@ import SwiftUI
 public struct CompactPlayerView: View {
     @ObservedObject public var appState: AppState
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.colorScheme) private var colorScheme
     @State private var isHoveringArtwork: Bool = false
 
     public init(appState: AppState) {
@@ -60,7 +61,7 @@ public struct CompactPlayerView: View {
 
                             Image(systemName: appState.radioPlayer.isPlaying ? "pause.fill" : "play.fill")
                                 .font(.system(size: 17, weight: .bold))
-                                .foregroundStyle(Color.white)
+                                .foregroundStyle(ChilltraxTheme.visualizerBackground(for: colorScheme))
                                 .offset(x: appState.radioPlayer.isPlaying ? 0 : 1.5)
                         }
                     }
@@ -68,6 +69,7 @@ public struct CompactPlayerView: View {
                     .keyboardShortcut(.space, modifiers: [])
                     .help(appState.radioPlayer.isPlaying ? "Pause Stream (Space)" : "Play Stream (Space)")
                 }
+                .frame(height: 68)
 
                 // Full-width Visualizer (same 68pt height as album cover)
                 VisualizerView(
@@ -96,13 +98,15 @@ public struct CompactPlayerView: View {
                 Divider()
                 HistoryListView(appState: appState)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                Spacer(minLength: 0)
             }
         }
         .frame(
             minWidth: ChilltraxTheme.compactWidth,
             idealWidth: ChilltraxTheme.compactWidth,
             maxWidth: ChilltraxTheme.compactWidth,
-            minHeight: ChilltraxTheme.compactHeight,
+            minHeight: 0,
             maxHeight: .infinity,
             alignment: .top
         )
@@ -115,6 +119,7 @@ public struct CompactPlayerView: View {
                 visualizerMode: appState.visualizerMode,
                 playbackStatus: appState.radioPlayer.status
             )
+            .frame(width: 0, height: 0)
         )
         .toolbar {
             ToolbarItem(placement: .navigation) {
@@ -208,7 +213,7 @@ public struct CompactPlayerView: View {
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(Color.black.opacity(0.12), lineWidth: 1)
+                    .strokeBorder(Color.primary.opacity(0.14), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)

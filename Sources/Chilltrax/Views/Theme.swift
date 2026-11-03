@@ -7,6 +7,14 @@ public enum ChilltraxTheme {
     public static let visualizerBlack = Color.black
     public static let visualizerWhite = Color.white
 
+    public static func visualizerBackground(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? visualizerBlack : visualizerWhite
+    }
+
+    public static func visualizerContrastColor(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? visualizerWhite : visualizerBlack
+    }
+
     public static let compactWidth: CGFloat = 480
     public static let compactHeight: CGFloat = 216
     public static let expandedHeight: CGFloat = 520
@@ -35,7 +43,13 @@ public struct WindowAccessor: NSViewRepresentable {
     }
 
     public func makeNSView(context: Context) -> NSView {
-        let view = NSView()
+        let view = WindowObserverView()
+        view.onWindowEvent = { [weak coordinator = context.coordinator] window in
+            guard let coordinator else { return }
+            coordinator.configure(window: window)
+            coordinator.syncSize(isExpanded: coordinator.currentExpanded, on: window)
+        }
+        context.coordinator.currentExpanded = isHistoryExpanded
         DispatchQueue.main.async {
             if let window = view.window {
                 context.coordinator.configure(window: window)
@@ -46,6 +60,7 @@ public struct WindowAccessor: NSViewRepresentable {
     }
 
     public func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.currentExpanded = isHistoryExpanded
         if let window = nsView.window {
             context.coordinator.configure(window: window)
             context.coordinator.syncSize(isExpanded: isHistoryExpanded, on: window)
@@ -57,7 +72,41 @@ public struct WindowAccessor: NSViewRepresentable {
         }
     }
 
+    public final class WindowObserverView: NSView {
+        var onWindowEvent: ((NSWindow) -> Void)?
+        private var isAsyncSyncScheduled = false
+
+        public override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let window {
+                onWindowEvent?(window)
+                schedulePostLayoutSync()
+            }
+        }
+
+        public override func layout() {
+            super.layout()
+            if let window {
+                onWindowEvent?(window)
+                schedulePostLayoutSync()
+            }
+        }
+
+        private func schedulePostLayoutSync() {
+            guard !isAsyncSyncScheduled else { return }
+            isAsyncSyncScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.isAsyncSyncScheduled = false
+                if let window = self.window {
+                    self.onWindowEvent?(window)
+                }
+            }
+        }
+    }
+
     public final class Coordinator {
+        var currentExpanded: Bool = false
         var lastAppliedExpanded: Bool?
         var configuredWindowNumbers = Set<Int>()
 
@@ -87,41 +136,54 @@ public struct WindowAccessor: NSViewRepresentable {
 
         @MainActor
         func syncSize(isExpanded: Bool, on window: NSWindow) {
-            guard lastAppliedExpanded != isExpanded else { return }
-            lastAppliedExpanded = isExpanded
-
+            currentExpanded = isExpanded
             let toolbarInset = max(0, window.frame.height - window.contentLayoutRect.height)
             let targetContentHeight = isExpanded ? ChilltraxTheme.expandedHeight : ChilltraxTheme.compactHeight
             let targetWindowHeight = targetContentHeight + toolbarInset
             let fixedWidth = ChilltraxTheme.compactWidth
-
-            if isExpanded {
-                window.styleMask.insert(.resizable)
-                window.standardWindowButton(.zoomButton)?.isEnabled = true
-            } else {
-                window.styleMask.remove(.resizable)
-                window.standardWindowButton(.zoomButton)?.isEnabled = false
-            }
-
-            // Relax vertical min/max constraints first so setFrame never fights active window limits
             let minContentHeight: CGFloat = isExpanded ? 320 : ChilltraxTheme.compactHeight
             let maxContentHeight: CGFloat = isExpanded ? 900 : ChilltraxTheme.compactHeight
-            window.minSize = NSSize(
-                width: fixedWidth,
-                height: ChilltraxTheme.compactHeight + toolbarInset
-            )
-            window.maxSize = NSSize(
-                width: fixedWidth,
-                height: 900 + toolbarInset
-            )
 
-            var targetFrame = window.frame
-            targetFrame.size.width = fixedWidth
-            targetFrame.size.height = targetWindowHeight
-            // Keep top edge of the window anchored in place on screen when expanding/collapsing
-            targetFrame.origin.y = window.frame.maxY - targetWindowHeight
+            let expandedChanged = (lastAppliedExpanded != isExpanded)
+            let widthDrifted = abs(window.frame.width - fixedWidth) > 0.5
+            let compactHeightDrifted = !isExpanded && abs(window.frame.height - targetWindowHeight) > 0.5
 
-            window.setFrame(targetFrame, display: true, animate: false)
+            if expandedChanged || widthDrifted || compactHeightDrifted {
+                lastAppliedExpanded = isExpanded
+
+                // Relax vertical min/max constraints first so setFrame never fights active window limits
+                window.minSize = NSSize(
+                    width: fixedWidth,
+                    height: ChilltraxTheme.compactHeight + toolbarInset
+                )
+                window.maxSize = NSSize(
+                    width: fixedWidth,
+                    height: 900 + toolbarInset
+                )
+
+                var targetFrame = window.frame
+                targetFrame.size.width = fixedWidth
+                if expandedChanged || !isExpanded {
+                    targetFrame.size.height = targetWindowHeight
+                    // Keep top edge of the window anchored in place on screen when expanding/collapsing
+                    targetFrame.origin.y = window.frame.maxY - targetWindowHeight
+                }
+
+                window.setFrame(targetFrame, display: true, animate: false)
+            }
+
+            // Always enforce styleMask and horizontal/vertical size locks after NSHostingView layout passes
+            if isExpanded {
+                if !window.styleMask.contains(.resizable) {
+                    window.styleMask.insert(.resizable)
+                }
+                window.standardWindowButton(.zoomButton)?.isEnabled = true
+            } else {
+                if window.styleMask.contains(.resizable) {
+                    window.styleMask.remove(.resizable)
+                }
+                window.standardWindowButton(.zoomButton)?.isEnabled = false
+            }
 
             window.minSize = NSSize(
                 width: fixedWidth,
