@@ -1,5 +1,7 @@
 import Foundation
 import AVFoundation
+import Accelerate
+import MediaToolbox
 import UserNotifications
 
 @MainActor
@@ -16,8 +18,10 @@ public final class RadioPlayer: NSObject, ObservableObject {
     @Published public private(set) var status: PlaybackStatus = .idle
     @Published public private(set) var errorMessage: String?
 
-    /// 32 normalized frequency/amplitude bins in `0.0...1.0` updated at 30fps for Waveform & Bars visualizers.
-    @Published public private(set) var visualizerLevels: [CGFloat] = Array(repeating: 0.08, count: 32)
+    nonisolated public static let visualizerBarCount = 42
+
+    /// 42 normalized frequency/amplitude bins in `0.0...1.0` updated at 30fps for Waveform & Bars visualizers.
+    @Published public private(set) var visualizerLevels: [CGFloat] = Array(repeating: 0.08, count: RadioPlayer.visualizerBarCount)
     @Published public private(set) var waveformPhase: Double = 0.0
 
     public var onICYMetadataReceived: ((SongMetadata) -> Void)?
@@ -29,6 +33,8 @@ public final class RadioPlayer: NSObject, ObservableObject {
     private var itemStatusObserver: NSKeyValueObservation?
     private var visualizerTimer: Timer?
     private var currentStreamURL: URL?
+    private var lastRealAudioLevels: [CGFloat]?
+    private var lastRealAudioTimestamp: TimeInterval = 0
 
     public override init() {
         super.init()
@@ -114,6 +120,7 @@ public final class RadioPlayer: NSObject, ObservableObject {
                     if self.isPlaying && self.player?.timeControlStatus == .playing {
                         self.status = .playing
                     }
+                    self.attachAudioTapIfAvailable(to: observedItem)
                 case .unknown:
                     break
                 @unknown default:
@@ -145,7 +152,133 @@ public final class RadioPlayer: NSObject, ObservableObject {
         }
     }
 
-    // MARK: - Real-Time Visualizer Synthesis
+    // MARK: - Real-Time Audio Intensity & Visualizer Synthesis
+
+    /// Computes normalized `0.08...0.98` frequency/intensity bins from mono/interleaved PCM float samples using `Accelerate`.
+    nonisolated public static func computeSpectrumLevels(
+        fromPCM samples: [Float],
+        count: Int = RadioPlayer.visualizerBarCount
+    ) -> [CGFloat] {
+        guard count > 0 else { return [] }
+        guard !samples.isEmpty else {
+            return Array(repeating: 0.08, count: count)
+        }
+
+        // Overall RMS intensity
+        var rms: Float = 0
+        vDSP_rmsqv(samples, 1, &rms, vDSP_Length(samples.count))
+        let overallGain = min(1.0, Double(rms) * 3.2)
+
+        let chunkSize = max(1, samples.count / count)
+        var bins = [CGFloat]()
+        bins.reserveCapacity(count)
+
+        for i in 0..<count {
+            let start = min(samples.count - 1, i * chunkSize)
+            let end = min(samples.count, start + chunkSize)
+            let sliceCount = max(1, end - start)
+
+            var bandRMS: Float = 0
+            var bandPeak: Float = 0
+            samples.withUnsafeBufferPointer { buffer in
+                guard let base = buffer.baseAddress else { return }
+                vDSP_rmsqv(base + start, 1, &bandRMS, vDSP_Length(sliceCount))
+                vDSP_maxmgv(base + start, 1, &bandPeak, vDSP_Length(sliceCount))
+            }
+
+            // Combine band energy, peak transient, and overall musical intensity
+            let norm = Double(i) / Double(max(1, count - 1))
+            let spectralWeight = sin(norm * .pi) * 0.35 + 0.65
+            let combined = (Double(bandRMS) * 2.4 + Double(bandPeak) * 0.85) * 0.65 + overallGain * 0.35
+            let scaled = combined * spectralWeight
+            let clamped = max(0.08, min(0.98, scaled))
+            bins.append(CGFloat(clamped))
+        }
+
+        return bins
+    }
+
+    public func updateVisualizerWithAudioSamples(_ samples: [Float]) {
+        let computed = Self.computeSpectrumLevels(fromPCM: samples, count: visualizerLevels.count)
+        lastRealAudioLevels = computed
+        lastRealAudioTimestamp = ProcessInfo.processInfo.systemUptime
+
+        var smoothed = [CGFloat]()
+        smoothed.reserveCapacity(visualizerLevels.count)
+        for i in 0..<visualizerLevels.count {
+            let prev = visualizerLevels[i]
+            let target = computed[i]
+            smoothed.append(prev * 0.35 + target * 0.65)
+        }
+        visualizerLevels = smoothed
+
+        let averageIntensity = Double(smoothed.reduce(0, +)) / Double(max(1, smoothed.count))
+        waveformPhase += 0.06 + averageIntensity * 0.24
+    }
+
+    private func attachAudioTapIfAvailable(to item: AVPlayerItem) {
+        guard item.audioMix == nil else { return }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            guard let tracks = try? await item.asset.loadTracks(withMediaType: .audio),
+                  let audioTrack = tracks.first else {
+                return
+            }
+
+            var callbacks = MTAudioProcessingTapCallbacks(
+                version: kMTAudioProcessingTapCallbacksVersion_0,
+                clientInfo: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
+                init: { tap, clientInfo, tapStorageOut in
+                    tapStorageOut.pointee = clientInfo
+                },
+                finalize: { _ in },
+                prepare: { _, _, _ in },
+                unprepare: { _ in },
+                process: { tap, numberFrames, flags, bufferListInOut, numberFramesOut, flagsOut in
+                    let status = MTAudioProcessingTapGetSourceAudio(
+                        tap,
+                        numberFrames,
+                        bufferListInOut,
+                        flagsOut,
+                        nil,
+                        numberFramesOut
+                    )
+                    guard status == noErr, numberFramesOut.pointee > 0 else { return }
+
+                    let storage = MTAudioProcessingTapGetStorage(tap)
+                    let bufferList = UnsafeMutableAudioBufferListPointer(bufferListInOut)
+                    guard let firstBuffer = bufferList.first,
+                          let dataPtr = firstBuffer.mData else { return }
+
+                    let frameCount = Int(numberFramesOut.pointee)
+                    let floatPtr = dataPtr.assumingMemoryBound(to: Float.self)
+                    let sampleCount = min(frameCount, Int(firstBuffer.mDataByteSize) / MemoryLayout<Float>.size)
+                    guard sampleCount > 0 else { return }
+
+                    let samples = Array(UnsafeBufferPointer(start: floatPtr, count: sampleCount))
+                    let playerRef = Unmanaged<RadioPlayer>.fromOpaque(storage).takeUnretainedValue()
+                    Task { @MainActor [weak playerRef] in
+                        playerRef?.updateVisualizerWithAudioSamples(samples)
+                    }
+                }
+            )
+
+            var tap: MTAudioProcessingTap?
+            let err = MTAudioProcessingTapCreate(
+                kCFAllocatorDefault,
+                &callbacks,
+                kMTAudioProcessingTapCreationFlag_PostEffects,
+                &tap
+            )
+            guard err == noErr, let createdTap = tap else { return }
+
+            let inputParams = AVMutableAudioMixInputParameters(track: audioTrack)
+            inputParams.audioTapProcessor = createdTap
+            let audioMix = AVMutableAudioMix()
+            audioMix.inputParameters = [inputParams]
+            item.audioMix = audioMix
+        }
+    }
 
     private func startVisualizerTimer() {
         visualizerTimer?.invalidate()
@@ -161,18 +294,36 @@ public final class RadioPlayer: NSObject, ObservableObject {
         let activelyStreaming = isPlaying && (status == .playing || status == .buffering)
 
         if activelyStreaming {
-            let speed = status == .playing ? 0.18 : 0.07
-            waveformPhase += speed
-            let t = waveformPhase
+            // If real PCM audio tap samples arrived recently, let the live audio tap drive levels
+            let now = ProcessInfo.processInfo.systemUptime
+            if status == .playing,
+               let liveLevels = lastRealAudioLevels,
+               liveLevels.count == count,
+               (now - lastRealAudioTimestamp) < 0.25 {
+                var nextLevels = [CGFloat]()
+                nextLevels.reserveCapacity(count)
+                for i in 0..<count {
+                    nextLevels.append(visualizerLevels[i] * 0.40 + liveLevels[i] * 0.60)
+                }
+                visualizerLevels = nextLevels
+                let avg = Double(nextLevels.reduce(0, +)) / Double(max(1, count))
+                waveformPhase += 0.06 + avg * 0.24
+                return
+            }
 
             var nextLevels = [CGFloat]()
             nextLevels.reserveCapacity(count)
+            let t = waveformPhase
+
+            // Dynamic musical phrase intensity envelope (swells, beats, and breakdowns)
+            let phraseSwell = (sin(t * 0.42) + 1.0) * 0.5 * 0.55 + 0.45
+            let beatKick = pow((sin(t * 1.65) + 1.0) * 0.5, 2.2)
 
             for i in 0..<count {
                 let norm = Double(i) / Double(max(1, count - 1))
                 // Center-weighted chillout bass/mid/treble envelope with organic polyrhythmic modulation
                 let envelope = sin(norm * .pi) * 0.65 + 0.35
-                let bassPulse = pow((sin(t * 1.35) + 1.0) * 0.5, 1.8) * (1.0 - norm * 0.55)
+                let bassPulse = beatKick * (1.0 - norm * 0.55)
                 let midWave = (sin(t * 2.4 + Double(i) * 0.45) + 1.0) * 0.5
                 let harmonic = (cos(t * 3.9 - Double(i) * 0.72) + 1.0) * 0.5
                 let shimmer = (sin(t * 6.1 + Double(i * i) * 0.13) + 1.0) * 0.5
@@ -181,7 +332,7 @@ public final class RadioPlayer: NSObject, ObservableObject {
                 if status == .buffering {
                     rawLevel = 0.12 + 0.18 * sin(t * 2.0 + Double(i) * 0.35)
                 } else {
-                    rawLevel = (bassPulse * 0.38 + midWave * 0.32 + harmonic * 0.18 + shimmer * 0.12) * envelope
+                    rawLevel = (bassPulse * 0.40 + midWave * 0.30 + harmonic * 0.18 + shimmer * 0.12) * envelope * phraseSwell
                 }
 
                 let clamped = max(0.08, min(0.98, rawLevel))
@@ -191,6 +342,9 @@ public final class RadioPlayer: NSObject, ObservableObject {
                 nextLevels.append(CGFloat(smoothed))
             }
             visualizerLevels = nextLevels
+            let averageIntensity = Double(nextLevels.reduce(0, +)) / Double(max(1, count))
+            let speed = status == .playing ? (0.08 + averageIntensity * 0.22) : 0.07
+            waveformPhase += speed
         } else {
             waveformPhase += 0.02
             var settled = [CGFloat]()

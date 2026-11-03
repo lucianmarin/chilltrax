@@ -309,4 +309,84 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertEqual(window.minSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
         XCTAssertEqual(window.maxSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
     }
+
+    @MainActor
+    func testBarsAndWaveformVisualizersSyncToMusicIntensity() {
+        let count = RadioPlayer.visualizerBarCount
+        XCTAssertEqual(count, 42)
+
+        // 1. Verify RadioPlayer audio intensity spectrum analysis from PCM samples
+        let quietSamples = (0..<2048).map { i in Float(sin(Double(i) * 0.15) * 0.02) }
+        let mediumSamples = (0..<2048).map { i in Float(sin(Double(i) * 0.15) * 0.22) }
+        let loudSamples = (0..<2048).map { i in Float(sin(Double(i) * 0.15) * 0.85) }
+
+        let quietLevels = RadioPlayer.computeSpectrumLevels(fromPCM: quietSamples, count: count)
+        let mediumLevels = RadioPlayer.computeSpectrumLevels(fromPCM: mediumSamples, count: count)
+        let loudLevels = RadioPlayer.computeSpectrumLevels(fromPCM: loudSamples, count: count)
+
+        let quietAvg = quietLevels.reduce(0, +) / CGFloat(count)
+        let mediumAvg = mediumLevels.reduce(0, +) / CGFloat(count)
+        let loudAvg = loudLevels.reduce(0, +) / CGFloat(count)
+
+        XCTAssertLessThan(quietAvg, mediumAvg)
+        XCTAssertLessThan(mediumAvg, loudAvg)
+
+        // 2. Verify Bars visualizer height & Waveform visualizer vertical span both scale monotonically with music intensity
+        let canvasSize = CGSize(width: 452, height: 68)
+        let barsQuietHeight = VisualizerView.barsAverageHeight(levels: quietLevels, size: canvasSize)
+        let barsMediumHeight = VisualizerView.barsAverageHeight(levels: mediumLevels, size: canvasSize)
+        let barsLoudHeight = VisualizerView.barsAverageHeight(levels: loudLevels, size: canvasSize)
+
+        XCTAssertLessThan(barsQuietHeight, barsMediumHeight)
+        XCTAssertLessThan(barsMediumHeight, barsLoudHeight)
+
+        let waveQuietSpan = VisualizerView.waveformPeakVerticalSpan(levels: quietLevels, phase: 1.2, size: canvasSize)
+        let waveMediumSpan = VisualizerView.waveformPeakVerticalSpan(levels: mediumLevels, phase: 1.2, size: canvasSize)
+        let waveLoudSpan = VisualizerView.waveformPeakVerticalSpan(levels: loudLevels, phase: 1.2, size: canvasSize)
+
+        XCTAssertLessThan(waveQuietSpan, waveMediumSpan)
+        XCTAssertLessThan(waveMediumSpan, waveLoudSpan)
+
+        // 3. Verify rendered output of both .bars and .waveform visualizers increases active pixel energy with intensity
+        func countActivePixels(mode: VisualizerMode, levels: [CGFloat]) -> Int {
+            let view = VisualizerView(mode: mode, levels: levels, phase: 1.2, isPlaying: true)
+                .environment(\.colorScheme, .light)
+                .frame(width: canvasSize.width, height: canvasSize.height)
+            let renderer = ImageRenderer(content: view)
+            renderer.scale = 1.0
+            guard let cgImage = renderer.cgImage,
+                  let data = cgImage.dataProvider?.data,
+                  let ptr = CFDataGetBytePtr(data) else {
+                return 0
+            }
+            let bytesPerRow = cgImage.bytesPerRow
+            let width = cgImage.width
+            let height = cgImage.height
+            var nonWhitePixels = 0
+            for y in 4..<(height - 4) {
+                for x in 4..<(width - 4) {
+                    let offset = y * bytesPerRow + x * 4
+                    let r = ptr[offset]
+                    let g = ptr[offset + 1]
+                    let b = ptr[offset + 2]
+                    if r < 245 || g < 245 || b < 245 {
+                        nonWhitePixels += 1
+                    }
+                }
+            }
+            return nonWhitePixels
+        }
+
+        let barsQuietPixels = countActivePixels(mode: .bars, levels: quietLevels)
+        let barsMediumPixels = countActivePixels(mode: .bars, levels: mediumLevels)
+        let barsLoudPixels = countActivePixels(mode: .bars, levels: loudLevels)
+        XCTAssertLessThan(barsQuietPixels, barsMediumPixels)
+        XCTAssertLessThan(barsMediumPixels, barsLoudPixels)
+
+        let waveQuietPixels = countActivePixels(mode: .waveform, levels: quietLevels)
+        let waveMediumPixels = countActivePixels(mode: .waveform, levels: mediumLevels)
+        let waveLoudPixels = countActivePixels(mode: .waveform, levels: loudLevels)
+        XCTAssertLessThan(waveQuietPixels, waveMediumPixels)
+        XCTAssertLessThan(waveMediumPixels, waveLoudPixels)
+    }
 }

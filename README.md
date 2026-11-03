@@ -1,4 +1,6 @@
-# Chilltrax — Native macOS Radio Player
+# Chilltrax — Winamp of the AI era
+
+![screenshot](screenshot.jpg)
 
 Chilltrax is a native macOS one-radio-station player built with SwiftUI and AVFoundation for **Chilltrax — The World's Chillout Channel** (`chilltrax.com`), with full support for custom station stream URLs.
 
