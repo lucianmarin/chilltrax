@@ -118,26 +118,6 @@ public struct SettingsView: View {
                         .foregroundStyle(ChilltraxTheme.accentRed)
                 }
             }
-
-            Section("Playback Tuning") {
-                Toggle(isOn: $appState.clarityAndBassEnhancerEnabled) {
-                    HStack(spacing: 6) {
-                        Text("Clarity & Bass Enhancer")
-                        Image(systemName: "headphones")
-                            .foregroundStyle(.secondary)
-                        Image(systemName: "hifispeaker")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Toggle(isOn: $appState.stereoWidenerEnabled) {
-                    HStack(spacing: 6) {
-                        Text("Stereo Widener")
-                        Image(systemName: "hifispeaker")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
         }
         .formStyle(.grouped)
         .scrollDisabled(true)
@@ -145,16 +125,6 @@ public struct SettingsView: View {
 
     private var preferencesTab: some View {
         Form {
-            Section("Audio Visualizer") {
-                Picker("Visualizer Style", selection: $appState.visualizerMode) {
-                    ForEach(VisualizerMode.allCases) { mode in
-                        Label(mode.title, systemImage: mode.systemImage)
-                            .tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-
             Section("Metadata, Artwork & Notifications") {
                 Toggle(
                     "Fetch current playing song album cover",

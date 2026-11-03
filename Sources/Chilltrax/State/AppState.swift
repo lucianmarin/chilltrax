@@ -17,8 +17,6 @@ public final class AppState: ObservableObject {
         static let fetchAlbumCoverFromChilltrax = "chilltrax.fetchAlbumCoverFromChilltrax"
         static let isHistoryExpanded = "chilltrax.isHistoryExpanded"
         static let historyCommitDelaySeconds = "chilltrax.historyCommitDelaySeconds"
-        static let clarityAndBassEnhancerEnabled = "chilltrax.clarityAndBassEnhancerEnabled"
-        static let stereoWidenerEnabled = "chilltrax.stereoWidenerEnabled"
     }
 
     // MARK: - Published UI & Player State
@@ -84,18 +82,6 @@ public final class AppState: ObservableObject {
                 updated.coverURLString = nil
                 currentSong = updated
             }
-        }
-    }
-    @Published public var clarityAndBassEnhancerEnabled: Bool {
-        didSet {
-            defaults.set(clarityAndBassEnhancerEnabled, forKey: DefaultsKeys.clarityAndBassEnhancerEnabled)
-            radioPlayer.clarityAndBassEnhancerEnabled = clarityAndBassEnhancerEnabled
-        }
-    }
-    @Published public var stereoWidenerEnabled: Bool {
-        didSet {
-            defaults.set(stereoWidenerEnabled, forKey: DefaultsKeys.stereoWidenerEnabled)
-            radioPlayer.stereoWidenerEnabled = stereoWidenerEnabled
         }
     }
     nonisolated public static let historyPageSize = 50
@@ -334,14 +320,6 @@ public final class AppState: ObservableObject {
         } else {
             self.isHistoryExpanded = false
         }
-
-        let initialClarityBass = defaults.bool(forKey: DefaultsKeys.clarityAndBassEnhancerEnabled)
-        self.clarityAndBassEnhancerEnabled = initialClarityBass
-        self.radioPlayer.clarityAndBassEnhancerEnabled = initialClarityBass
-
-        let initialStereoWidener = defaults.bool(forKey: DefaultsKeys.stereoWidenerEnabled)
-        self.stereoWidenerEnabled = initialStereoWidener
-        self.radioPlayer.stereoWidenerEnabled = initialStereoWidener
 
         // Load compressed song history from disk
         self.historyEntries = historyStore.load()
