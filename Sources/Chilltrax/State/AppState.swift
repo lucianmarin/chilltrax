@@ -102,6 +102,7 @@ public final class AppState: ObservableObject {
     public let radioPlayer: RadioPlayer
     public let client: ChilltraxClient
     public let historyStore: CompressedHistoryStore
+    public let coverCache: AlbumCoverCache
     public private(set) var minimumHistoryPlayDuration: TimeInterval
     private let defaults: UserDefaults
     private let startPollingAutomatically: Bool
@@ -154,6 +155,7 @@ public final class AppState: ObservableObject {
     public init(
         client: ChilltraxClient = ChilltraxClient(),
         historyStore: CompressedHistoryStore = CompressedHistoryStore(),
+        coverCache: AlbumCoverCache? = nil,
         radioPlayer: RadioPlayer? = nil,
         defaults: UserDefaults = .standard,
         startPollingAutomatically: Bool = true,
@@ -161,6 +163,7 @@ public final class AppState: ObservableObject {
     ) {
         self.client = client
         self.historyStore = historyStore
+        self.coverCache = coverCache ?? AlbumCoverCache(client: client)
         self.radioPlayer = radioPlayer ?? RadioPlayer()
         self.defaults = defaults
         self.startPollingAutomatically = startPollingAutomatically
@@ -420,6 +423,7 @@ public final class AppState: ObservableObject {
                 currentSong = updated
                 if hasRecordedCurrentSongInHistory {
                     historyEntries = historyStore.recordSong(updated, station: selectedStream, existingEntries: historyEntries)
+                    cacheAlbumCoverForHistoryItem(updated.coverURL)
                 }
             }
         }
@@ -498,6 +502,7 @@ public final class AppState: ObservableObject {
             station: selectedStream,
             existingEntries: historyEntries
         )
+        cacheAlbumCoverForHistoryItem(currentSong.coverURL)
         if !historySearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             updateHistoryExpansionForSearch(previousQuery: historySearchQuery)
         }
@@ -543,6 +548,7 @@ public final class AppState: ObservableObject {
                 station: selectedStream,
                 existingEntries: historyEntries
             )
+            cacheAlbumCoverForHistoryItem(merged.coverURL)
             if !historySearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 updateHistoryExpansionForSearch(previousQuery: historySearchQuery)
             }
@@ -572,6 +578,16 @@ public final class AppState: ObservableObject {
         pendingHistoryTask = nil
         historyEntries = []
         historyStore.save([])
+        coverCache.clearAll()
+    }
+
+    private func cacheAlbumCoverForHistoryItem(_ coverURL: URL?) {
+        guard fetchAlbumCoverFromChilltrax, let coverURL else { return }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.coverCache.cacheCoverIfNeeded(for: coverURL)
+            self.objectWillChange.send()
+        }
     }
 
     private func refreshCoverArtForSettingChange() async {
@@ -584,6 +600,7 @@ public final class AppState: ObservableObject {
                 currentSong = updated
                 if hasRecordedCurrentSongInHistory {
                     historyEntries = historyStore.recordSong(updated, station: selectedStream, existingEntries: historyEntries)
+                    cacheAlbumCoverForHistoryItem(updated.coverURL)
                 }
             }
         } else {

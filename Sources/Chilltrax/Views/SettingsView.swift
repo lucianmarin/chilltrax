@@ -200,7 +200,12 @@ public struct SettingsView: View {
                         .font(.system(.body, design: .rounded).weight(.semibold))
                 }
 
-                LabeledContent("Compressed File Size") {
+                LabeledContent("Album Covers Cache Size") {
+                    Text(ByteCountFormatter.string(fromByteCount: appState.coverCache.cachedFilesSizeBytes, countStyle: .file))
+                        .foregroundStyle(.secondary)
+                }
+
+                LabeledContent("Compressed History Size") {
                     Text(ByteCountFormatter.string(fromByteCount: appState.historyStore.compressedFileSizeBytes, countStyle: .file))
                         .foregroundStyle(.secondary)
                 }
@@ -219,10 +224,10 @@ public struct SettingsView: View {
                         NSWorkspace.shared.activateFileViewerSelecting([appState.historyStore.fileURL])
                     }
                     Spacer()
-                    Button("Clear Song History", role: .destructive) {
+                    Button("Clear Cache & History", role: .destructive) {
                         appState.clearHistory()
                     }
-                    .disabled(appState.historyEntries.isEmpty)
+                    .disabled(appState.historyEntries.isEmpty && appState.coverCache.cachedFileCount == 0)
                 }
             }
         }

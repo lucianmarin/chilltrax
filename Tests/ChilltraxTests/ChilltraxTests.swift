@@ -531,4 +531,133 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertEqual(state.displayedHistoryEntries.count, 120)
         XCTAssertFalse(state.hasMoreHistoryEntries)
     }
+
+    @MainActor
+    func testAlbumCoversCachedLocallyForHistoryItemsAndDeletedOnClearHistory() async throws {
+        let suiteName = "ChilltraxCoverCacheTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cover-cache-test-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let historyFile = tempRoot.appendingPathComponent("history.tsv.lzfse")
+        let coversDir = tempRoot.appendingPathComponent("Covers", isDirectory: true)
+
+        guard let pngData = AppIcon.renderPlaceholderPNGData(pixelSize: 64) else {
+            XCTFail("Expected placeholder PNG data")
+            return
+        }
+
+        let coverURL1 = URL(string: "https://www.chilltrax.com/images/cover/track1.png")!
+        let coverURL2 = URL(string: "https://www.chilltrax.com/images/cover/track2.jpg")!
+
+        MockCoverURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(
+                url: request.url ?? coverURL1,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "image/png"]
+            )!
+            return (response, pngData)
+        }
+        defer { MockCoverURLProtocol.requestHandler = nil }
+
+        let sessionConfig = URLSessionConfiguration.ephemeral
+        sessionConfig.protocolClasses = [MockCoverURLProtocol.self]
+        let mockClient = ChilltraxClient(session: URLSession(configuration: sessionConfig))
+
+        let store = CompressedHistoryStore(fileURL: historyFile)
+        let coverCache = AlbumCoverCache(directoryURL: coversDir, client: mockClient)
+        let state = AppState(
+            client: mockClient,
+            historyStore: store,
+            coverCache: coverCache,
+            defaults: defaults,
+            startPollingAutomatically: false,
+            minimumHistoryPlayDuration: 0
+        )
+
+        state.radioPlayer.setSimulatedPlaybackStateForTesting(isPlaying: true, status: .playing)
+        state.handleIncomingSongMetadata(
+            SongMetadata(
+                artist: "Thievery Corporation",
+                title: "Lebanese Blonde",
+                albumOrMix: "The Mirror Conspiracy",
+                coverURLString: coverURL1.absoluteString
+            ),
+            sourceIsICY: false
+        )
+        state.handleIncomingSongMetadata(
+            SongMetadata(
+                artist: "Kruder & Dorfmeister",
+                title: "High Noon",
+                albumOrMix: "The K&D Sessions",
+                coverURLString: coverURL2.absoluteString
+            ),
+            sourceIsICY: false
+        )
+
+        // Wait briefly for the background cover caching tasks to finish writing to disk
+        for _ in 0..<30 {
+            if coverCache.isCachedOnDisk(for: coverURL1) && coverCache.isCachedOnDisk(for: coverURL2) {
+                break
+            }
+            try await Task.sleep(nanoseconds: 25_000_000)
+        }
+
+        XCTAssertEqual(state.historyEntries.count, 2)
+        XCTAssertTrue(coverCache.isCachedOnDisk(for: coverURL1))
+        XCTAssertTrue(coverCache.isCachedOnDisk(for: coverURL2))
+        XCTAssertEqual(coverCache.cachedFileCount, 2)
+        XCTAssertGreaterThan(coverCache.cachedFilesSizeBytes, 0)
+        XCTAssertNotNil(coverCache.cachedImage(for: coverURL1))
+        XCTAssertNotNil(coverCache.cachedImage(for: coverURL2))
+
+        // Verify disk persistence across a fresh AlbumCoverCache instance
+        let reloadedCache = AlbumCoverCache(directoryURL: coversDir, client: mockClient)
+        XCTAssertNotNil(reloadedCache.cachedImage(for: coverURL1))
+        XCTAssertNotNil(reloadedCache.cachedImage(for: coverURL2))
+
+        // Clearing history deletes all cached album covers from disk and memory
+        state.clearHistory()
+        XCTAssertTrue(state.historyEntries.isEmpty)
+        XCTAssertFalse(coverCache.isCachedOnDisk(for: coverURL1))
+        XCTAssertFalse(coverCache.isCachedOnDisk(for: coverURL2))
+        XCTAssertEqual(coverCache.cachedFileCount, 0)
+        XCTAssertEqual(coverCache.cachedFilesSizeBytes, 0)
+        XCTAssertNil(coverCache.cachedImage(for: coverURL1))
+        XCTAssertNil(coverCache.cachedImage(for: coverURL2))
+    }
 }
+
+private final class MockCoverURLProtocol: URLProtocol {
+    nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        guard let handler = Self.requestHandler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+        do {
+            let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
+}
+

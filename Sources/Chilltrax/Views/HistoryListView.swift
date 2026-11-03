@@ -37,6 +37,7 @@ public struct HistoryListView: View {
                             HistoryRowView(
                                 entry: entry,
                                 showCover: appState.fetchAlbumCoverFromChilltrax,
+                                coverCache: appState.coverCache,
                                 formattedDate: Self.timeFormatter.string(from: entry.playedAt),
                                 showBottomDivider: index < displayed.count - 1 || appState.hasMoreHistoryEntries
                             )
@@ -56,6 +57,7 @@ public struct HistoryListView: View {
 private struct HistoryRowView: View {
     let entry: SongHistoryEntry
     let showCover: Bool
+    let coverCache: AlbumCoverCache
     let formattedDate: String
     let showBottomDivider: Bool
 
@@ -67,17 +69,7 @@ private struct HistoryRowView: View {
                         .fill(Color.primary.opacity(0.07))
 
                     if let coverURL = entry.coverURL {
-                        AsyncImage(url: coverURL) { phase in
-                            if case .success(let image) = phase {
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            } else {
-                                Image(systemName: "music.note")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
+                        CachedHistoryCoverView(url: coverURL, coverCache: coverCache)
                     } else {
                         Image(systemName: "music.note")
                             .font(.system(size: 12))
@@ -146,3 +138,32 @@ private struct HistoryRowView: View {
         }
     }
 }
+
+private struct CachedHistoryCoverView: View {
+    let url: URL
+    let coverCache: AlbumCoverCache
+    @State private var loadedImage: NSImage?
+
+    var body: some View {
+        Group {
+            if let image = loadedImage ?? coverCache.cachedImage(for: url) {
+                Image(nsImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                Image(systemName: "music.note")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .task(id: url) {
+            if let cached = coverCache.cachedImage(for: url) {
+                loadedImage = cached
+            } else {
+                loadedImage = await coverCache.image(for: url)
+            }
+        }
+    }
+}
+
