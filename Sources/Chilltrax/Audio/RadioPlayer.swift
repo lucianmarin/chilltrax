@@ -250,8 +250,10 @@ public final class RadioPlayer: NSObject, ObservableObject {
             smoothed.append(nextVal)
 
             let prevTrail = i < visualizerTrailLevels.count ? visualizerTrailLevels[i] : prev
-            let decayedTrail = prevTrail * 0.82 + nextVal * 0.18
-            trails.append(max(nextVal, min(1.0, decayedTrail + abs(nextVal - prev) * 0.65)))
+            let retention: CGFloat = 0.88
+            let decayedTrail = prevTrail * retention + nextVal * (1.0 - retention)
+            let movementBoost = abs(nextVal - prev) * 0.75
+            trails.append(max(nextVal, min(1.0, decayedTrail + movementBoost)))
         }
         visualizerLevels = smoothed
         visualizerTrailLevels = trails
@@ -356,8 +358,10 @@ public final class RadioPlayer: NSObject, ObservableObject {
                     nextLevels.append(nextVal)
 
                     let prevTrail = i < visualizerTrailLevels.count ? visualizerTrailLevels[i] : prev
-                    let decayedTrail = prevTrail * 0.82 + nextVal * 0.18
-                    nextTrails.append(max(nextVal, min(1.0, decayedTrail + abs(nextVal - prev) * 0.65)))
+                    let retention: CGFloat = 0.88
+                    let decayedTrail = prevTrail * retention + nextVal * (1.0 - retention)
+                    let movementBoost = abs(nextVal - prev) * 0.75
+                    nextTrails.append(max(nextVal, min(1.0, decayedTrail + movementBoost)))
                 }
                 visualizerLevels = nextLevels
                 visualizerTrailLevels = nextTrails
@@ -417,7 +421,8 @@ public final class RadioPlayer: NSObject, ObservableObject {
                 nextLevels.append(smoothed)
 
                 let prevTrail = i < visualizerTrailLevels.count ? visualizerTrailLevels[i] : CGFloat(previous)
-                let decayedTrail = prevTrail * 0.80 + smoothed * 0.20
+                let retention: CGFloat = 0.88
+                let decayedTrail = prevTrail * retention + smoothed * (1.0 - retention)
                 let movementBoost = abs(smoothed - CGFloat(previous)) * 0.75
                 nextTrails.append(max(smoothed, min(1.0, decayedTrail + movementBoost)))
             }

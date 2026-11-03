@@ -107,6 +107,34 @@ public struct VisualizerView: View {
         spectrumAverageHeight(levels: levels, size: size)
     }
 
+    /// Returns the spectrum bar color based on normalized bar height (`0.0...1.0`):
+    /// low height -> `#808080` gray, mid height -> black/contrast, high/maximum height -> accent red.
+    public static func spectrumBarColor(forNormalizedHeight height: CGFloat, colorScheme: ColorScheme = .light) -> Color {
+        if height >= 0.62 {
+            return ChilltraxTheme.accentRed
+        } else if height >= 0.26 {
+            return ChilltraxTheme.visualizerContrastColor(for: colorScheme)
+        } else {
+            return ChilltraxTheme.visualizerGray
+        }
+    }
+
+    /// Returns the trailing fade color for a spectrum bar based on both the current bar height and the trail's peak height,
+    /// ensuring trails left behind by high red bars stay red and trails from mid black bars stay black/contrast as bars drop.
+    public static func spectrumTrailColor(
+        forBarHeight barHeight: CGFloat,
+        trailHeight: CGFloat,
+        colorScheme: ColorScheme = .light
+    ) -> Color {
+        if barHeight >= 0.62 || trailHeight >= 0.56 {
+            return ChilltraxTheme.accentRed
+        } else if barHeight >= 0.26 || trailHeight >= 0.22 {
+            return ChilltraxTheme.visualizerContrastColor(for: colorScheme)
+        } else {
+            return ChilltraxTheme.visualizerGray
+        }
+    }
+
     /// Computes normalized `(-1.0...1.0)` vertical wave offsets for the primary red waveform, ensuring punchy peaks reach full amplitude regardless of phase.
     private static func computePrimaryWaveOffsets(
         levels: [CGFloat],
@@ -177,65 +205,53 @@ public struct VisualizerView: View {
         let spacing: CGFloat = 2.0
         let totalSpacing = spacing * CGFloat(count - 1)
         let barWidth = max(1.5, (usableWidth - totalSpacing) / CGFloat(count))
-        let secondaryBarColor = contrastColor
-        let tertiaryBarColor = ChilltraxTheme.visualizerGray
 
         let clampedLevels = levels.isEmpty ? [CGFloat(0.07)] : levels.map { max(0.07, min(1.0, $0)) }
         let averageLevel = clampedLevels.reduce(0, +) / CGFloat(clampedLevels.count)
         let fadeOpacity = isPlaying
-            ? min(0.22, 0.10 + Double(averageLevel) * 0.14)
-            : 0.06
+            ? min(0.16, 0.08 + Double(averageLevel) * 0.08)
+            : 0.04
 
         for (index, rawLevel) in levels.enumerated() {
             let clamped = max(0.07, min(1.0, rawLevel))
             let shaped = CGFloat(pow(Double(clamped), 1.15))
-            let barHeight = max(4, usableHeight * shaped)
+            // Reserve subtle top headroom for the trailing fade cap so even 1.0 maximum-height red bars show a visible trail above them
+            let maxBarSpan = max(8, usableHeight - (isPlaying ? 4.5 : 0.0))
+            let barHeight = max(4, maxBarSpan * shaped)
             let x = horizontalPadding + CGFloat(index) * (barWidth + spacing)
             let y = size.height - verticalPadding - barHeight
 
-            // Consistent 3-color cycle across spectrum bars: Red, Black/Contrast, #808080 Gray
-            let baseColor: Color
-            switch index % 3 {
-            case 0:
-                baseColor = ChilltraxTheme.accentRed
-            case 1:
-                baseColor = secondaryBarColor
-            default:
-                baseColor = tertiaryBarColor
-            }
+            // Color determined by bar height: #808080 gray (low) -> black/contrast (mid) -> red (high/maximum)
+            let baseColor = Self.spectrumBarColor(forNormalizedHeight: shaped, colorScheme: colorScheme)
 
-            // Subtle fade behind bar movement (trailing peak/lagged envelope in the bar's own color)
+            // Equalized trailing fade across low (gray), mid (black), and high (red) bars
             let explicitTrailRaw = (trailLevels != nil && index < (trailLevels?.count ?? 0))
                 ? max(clamped, min(1.0, trailLevels![index]))
                 : clamped
+            let phaseLagWave = CGFloat(max(0.0, sin(phase * 2.1 - Double(index) * 0.42)) * 0.10 + 0.08)
             let phaseLagBoost = isPlaying
-                ? CGFloat(max(0.0, sin(phase * 2.1 - Double(index) * 0.42)) * 0.14 + 0.08) * clamped
+                ? phaseLagWave * (0.35 + clamped * 0.65)
                 : CGFloat(0.04) * clamped
             let trailRaw = min(1.0, max(explicitTrailRaw, clamped + phaseLagBoost))
             let trailShaped = CGFloat(pow(Double(trailRaw), 1.05))
-            let trailHeight = max(barHeight + (isPlaying ? 3.0 : 1.0), usableHeight * trailShaped)
-            let clampedTrailHeight = min(usableHeight, trailHeight)
+            let minTrailLead: CGFloat = isPlaying ? 5.0 : 1.0
+            let maxTrailSpan = size.height - verticalPadding - 0.5
+            let trailHeight = max(barHeight + minTrailLead, maxTrailSpan * trailShaped)
+            let clampedTrailHeight = min(maxTrailSpan, trailHeight)
             let trailY = size.height - verticalPadding - clampedTrailHeight
             let trailRect = CGRect(x: x, y: trailY, width: barWidth, height: clampedTrailHeight)
             let trailPath = Path(roundedRect: trailRect, cornerRadius: barWidth / 2)
-            context.fill(trailPath, with: .color(baseColor.opacity(fadeOpacity)))
+            let trailColor = Self.spectrumTrailColor(
+                forBarHeight: shaped,
+                trailHeight: trailShaped,
+                colorScheme: colorScheme
+            )
+            context.fill(trailPath, with: .color(trailColor.opacity(fadeOpacity)))
 
             let rect = CGRect(x: x, y: y, width: barWidth, height: barHeight)
             let path = Path(roundedRect: rect, cornerRadius: barWidth / 2)
 
-            let barColor: Color
-            if isPlaying {
-                barColor = baseColor
-            } else {
-                switch index % 3 {
-                case 0:
-                    barColor = ChilltraxTheme.accentRed.opacity(0.55)
-                case 1:
-                    barColor = secondaryBarColor.opacity(0.35)
-                default:
-                    barColor = tertiaryBarColor.opacity(0.45)
-                }
-            }
+            let barColor = isPlaying ? baseColor : baseColor.opacity(0.45)
 
             context.fill(path, with: .color(barColor))
         }

@@ -495,6 +495,31 @@ final class ChilltraxTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(player.visualizerTrailLevels[i], player.visualizerLevels[i])
         }
 
+        // Spectrum bar color transitions by height: gray (low) -> black/contrast (mid) -> red (high/maximum)
+        XCTAssertEqual(VisualizerView.spectrumBarColor(forNormalizedHeight: 0.12, colorScheme: .light), ChilltraxTheme.visualizerGray)
+        XCTAssertEqual(VisualizerView.spectrumBarColor(forNormalizedHeight: 0.45, colorScheme: .light), ChilltraxTheme.visualizerBlack)
+        XCTAssertEqual(VisualizerView.spectrumBarColor(forNormalizedHeight: 0.45, colorScheme: .dark), ChilltraxTheme.visualizerWhite)
+        XCTAssertEqual(VisualizerView.spectrumBarColor(forNormalizedHeight: 0.85, colorScheme: .light), ChilltraxTheme.accentRed)
+        XCTAssertEqual(VisualizerView.spectrumBarColor(forNormalizedHeight: 1.00, colorScheme: .light), ChilltraxTheme.accentRed)
+
+        // Trailing fade from high red bars stays red and mid black bars stays black/contrast as bars drop
+        XCTAssertEqual(
+            VisualizerView.spectrumTrailColor(forBarHeight: 0.35, trailHeight: 0.82, colorScheme: .light),
+            ChilltraxTheme.accentRed
+        )
+        XCTAssertEqual(
+            VisualizerView.spectrumTrailColor(forBarHeight: 0.95, trailHeight: 1.00, colorScheme: .light),
+            ChilltraxTheme.accentRed
+        )
+        XCTAssertEqual(
+            VisualizerView.spectrumTrailColor(forBarHeight: 0.15, trailHeight: 0.38, colorScheme: .light),
+            ChilltraxTheme.visualizerBlack
+        )
+        XCTAssertEqual(
+            VisualizerView.spectrumTrailColor(forBarHeight: 0.12, trailHeight: 0.18, colorScheme: .light),
+            ChilltraxTheme.visualizerGray
+        )
+
         // 3. Verify rendered output of both .spectrum and .waveform visualizers increases active pixel energy with intensity
         func countActivePixels(mode: VisualizerMode, levels: [CGFloat]) -> Int {
             let view = VisualizerView(mode: mode, levels: levels, phase: 1.2, isPlaying: true)
