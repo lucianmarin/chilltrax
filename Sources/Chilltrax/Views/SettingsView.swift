@@ -136,7 +136,7 @@ public struct SettingsView: View {
                 )
             }
 
-            Section("Compressed Song History File") {
+            Section("Covers Cache & History File") {
                 LabeledContent("Commit Song After Playing") {
                     HStack(spacing: 8) {
                         TextField(
