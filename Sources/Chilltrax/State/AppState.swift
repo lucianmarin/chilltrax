@@ -5,10 +5,12 @@ import Combine
 @MainActor
 public final class AppState: ObservableObject {
     private enum DefaultsKeys {
+        static let selectedStation = "chilltrax.selectedStation"
         static let selectedStreamURL = "chilltrax.selectedStreamURL"
         static let selectedStreamName = "chilltrax.selectedStreamName"
         static let customStreams = "chilltrax.customStreams"
         static let discoveredStreams = "chilltrax.discoveredStreams"
+        static let stationAPIEndpoints = "chilltrax.stationAPIEndpoints"
         static let visualizerMode = "chilltrax.visualizerMode"
         static let notifyOnSongChange = "chilltrax.notifyOnSongChange"
         static let fetchAlbumCoverFromChilltrax = "chilltrax.fetchAlbumCoverFromChilltrax"
@@ -19,16 +21,31 @@ public final class AppState: ObservableObject {
     // MARK: - Published UI & Player State
 
     @Published public var currentSong: SongMetadata = .placeholder
+    @Published public var selectedStation: RadioStation = .chilltrax {
+        didSet {
+            defaults.set(selectedStation.rawValue, forKey: DefaultsKeys.selectedStation)
+        }
+    }
     @Published public var selectedStream: StationStream {
         didSet {
             defaults.set(selectedStream.urlString, forKey: DefaultsKeys.selectedStreamURL)
             defaults.set(selectedStream.name, forKey: DefaultsKeys.selectedStreamName)
+            if selectedStation != selectedStream.station {
+                selectedStation = selectedStream.station
+            }
         }
     }
-    @Published public var discoveredStreams: [StationStream] = StationStream.defaultChilltraxStreams {
+    @Published public var discoveredStreams: [StationStream] = StationStream.defaultAllStreams {
         didSet {
             if let encoded = try? JSONEncoder().encode(discoveredStreams) {
                 defaults.set(encoded, forKey: DefaultsKeys.discoveredStreams)
+            }
+        }
+    }
+    @Published public var stationAPIEndpoints: [RadioStation: StationAPIEndpoints] {
+        didSet {
+            if let encoded = try? JSONEncoder().encode(stationAPIEndpoints) {
+                defaults.set(encoded, forKey: DefaultsKeys.stationAPIEndpoints)
             }
         }
     }
@@ -144,8 +161,17 @@ public final class AppState: ObservableObject {
         visibleHistoryLimit = min(total, visibleHistoryLimit + Self.historyPageSize)
     }
 
+    public var streamsForSelectedStation: [StationStream] {
+        let filtered = discoveredStreams.filter { $0.station == selectedStation }
+        return filtered.isEmpty ? selectedStation.defaultStreams : filtered
+    }
+
+    public var currentStationAPIEndpoints: StationAPIEndpoints {
+        stationAPIEndpoints[selectedStation] ?? selectedStation.defaultAPIEndpoints
+    }
+
     public var allAvailableStreams: [StationStream] {
-        var combined = discoveredStreams
+        var combined = streamsForSelectedStation
         for custom in customStreams where !combined.contains(where: { $0.urlString.caseInsensitiveCompare(custom.urlString) == .orderedSame }) {
             combined.append(custom)
         }
@@ -184,15 +210,30 @@ public final class AppState: ObservableObject {
         }
 
         // Load persisted settings
-        let initialDiscovered: [StationStream]
+        var initialDiscovered: [StationStream]
         if let rawDiscovered = defaults.data(forKey: DefaultsKeys.discoveredStreams),
            let decoded = try? JSONDecoder().decode([StationStream].self, from: rawDiscovered),
            !decoded.isEmpty {
             initialDiscovered = decoded
         } else {
-            initialDiscovered = StationStream.defaultChilltraxStreams
+            initialDiscovered = StationStream.defaultAllStreams
+        }
+        for station in RadioStation.allCases where !initialDiscovered.contains(where: { $0.station == station }) {
+            initialDiscovered.append(contentsOf: station.defaultStreams)
         }
         self.discoveredStreams = initialDiscovered
+
+        var defaultEndpoints: [RadioStation: StationAPIEndpoints] = [:]
+        for station in RadioStation.allCases {
+            defaultEndpoints[station] = station.defaultAPIEndpoints
+        }
+        if let rawEndpoints = defaults.data(forKey: DefaultsKeys.stationAPIEndpoints),
+           let decoded = try? JSONDecoder().decode([RadioStation: StationAPIEndpoints].self, from: rawEndpoints) {
+            for (station, endpoints) in decoded {
+                defaultEndpoints[station] = endpoints
+            }
+        }
+        self.stationAPIEndpoints = defaultEndpoints
 
         let initialCustom: [StationStream]
         if let rawCustom = defaults.data(forKey: DefaultsKeys.customStreams),
@@ -203,20 +244,27 @@ public final class AppState: ObservableObject {
         }
         self.customStreams = initialCustom
 
+        let savedStationRaw = defaults.string(forKey: DefaultsKeys.selectedStation)
+        let savedStation = savedStationRaw.flatMap(RadioStation.init(rawValue:))
         let savedURL = defaults.string(forKey: DefaultsKeys.selectedStreamURL)
         let savedName = defaults.string(forKey: DefaultsKeys.selectedStreamName)
         if let savedURL, !savedURL.isEmpty {
             let matching = (initialDiscovered + initialCustom).first {
                 $0.urlString.caseInsensitiveCompare(savedURL) == .orderedSame
             }
-            self.selectedStream = matching ?? StationStream(
-                name: savedName ?? "Custom Station",
+            let resolvedStream = matching ?? StationStream(
+                name: savedName ?? "Chilltrax",
                 urlString: savedURL,
-                formatDetails: "Custom URL",
-                isChilltraxOfficial: savedURL.lowercased().contains("chilltrax") || savedURL.lowercased().contains("electronicmusicradiogroup")
+                formatDetails: "Live Stream",
+                isChilltraxOfficial: true,
+                station: savedStation
             )
+            self.selectedStation = savedStation ?? resolvedStream.station
+            self.selectedStream = resolvedStream
         } else {
-            self.selectedStream = .defaultStream
+            let station = savedStation ?? .chilltrax
+            self.selectedStation = station
+            self.selectedStream = station.defaultStream
         }
 
         if let modeRaw = defaults.string(forKey: DefaultsKeys.visualizerMode),
@@ -285,9 +333,33 @@ public final class AppState: ObservableObject {
         }
     }
 
+    public func selectStation(_ station: RadioStation, autoPlayIfCurrentlyPlaying: Bool = true) {
+        guard selectedStation != station || selectedStream.station != station else { return }
+        selectedStation = station
+        let stationStreams = discoveredStreams.filter { $0.station == station }
+        let targetStream = stationStreams.first ?? station.defaultStream
+        if radioPlayer.isPlaying {
+            currentSong = .placeholder
+            pendingHistoryTask?.cancel()
+            pendingHistoryTask = nil
+            currentSongAccumulatedPlayTime = 0
+            hasRecordedCurrentSongInHistory = false
+        }
+        selectStream(targetStream, autoPlayIfCurrentlyPlaying: autoPlayIfCurrentlyPlaying)
+    }
+
     public func selectStream(_ stream: StationStream, autoPlayIfCurrentlyPlaying: Bool = true) {
         let wasPlaying = radioPlayer.isPlaying
+        let stationChanged = selectedStation != stream.station
+        selectedStation = stream.station
         selectedStream = stream
+        if stationChanged && wasPlaying {
+            currentSong = .placeholder
+            pendingHistoryTask?.cancel()
+            pendingHistoryTask = nil
+            currentSongAccumulatedPlayTime = 0
+            hasRecordedCurrentSongInHistory = false
+        }
         if wasPlaying && autoPlayIfCurrentlyPlaying {
             radioPlayer.stop()
             playSelectedStream()
@@ -356,26 +428,59 @@ public final class AppState: ObservableObject {
         }
     }
 
-    // MARK: - Broadcast Discovery from chilltrax.com
+    // MARK: - Broadcast & API Discovery from chilltrax.com and radiodanz.com
 
     public func discoverBroadcastsFromChilltraxWebsite() async {
         isDiscoveringBroadcasts = true
-        discoveryStatusMessage = "Scanning chilltrax.com for broadcast streams…"
+        discoveryStatusMessage = "Scanning chilltrax.com and radiodanz.com for broadcasts and API URLs…"
         defer { isDiscoveringBroadcasts = false }
 
         do {
-            let found = try await client.discoverBroadcastStreamsFromWebsite()
-            discoveredStreams = found
-            discoveryStatusMessage = "Found \(found.count) broadcast streams on chilltrax.com."
+            let results = try await client.discoverAllStationsConfiguration(
+                previousEndpointsByStation: stationAPIEndpoints
+            )
+
+            var combinedStreams: [StationStream] = []
+            var updatedEndpoints = stationAPIEndpoints
+            var updatedAPISites: [String] = []
+
+            for station in RadioStation.allCases {
+                if let result = results[station] {
+                    combinedStreams.append(contentsOf: result.streams)
+                    updatedEndpoints[station] = result.apiEndpoints
+                    if result.didChangeAPIEndpoints {
+                        updatedAPISites.append(station.domain)
+                    }
+                } else {
+                    let existing = discoveredStreams.filter { $0.station == station }
+                    combinedStreams.append(contentsOf: existing.isEmpty ? station.defaultStreams : existing)
+                }
+            }
+
+            discoveredStreams = combinedStreams
+            stationAPIEndpoints = updatedEndpoints
+
+            let chilltraxCount = results[.chilltrax]?.streams.count ?? 0
+            let danzCount = results[.radioDanz]?.streams.count ?? 0
+            let apiSummary: String
+            if updatedAPISites.isEmpty {
+                apiSummary = "API URLs verified."
+            } else {
+                apiSummary = "Updated API URLs for \(updatedAPISites.joined(separator: ", "))."
+            }
+            discoveryStatusMessage = "Found \(chilltraxCount) Chilltrax and \(danzCount) Radio Danz broadcasts. \(apiSummary)"
+
             // Ensure current selection stays valid or updated
-            if let updatedMatch = found.first(where: { $0.urlString.caseInsensitiveCompare(selectedStream.urlString) == .orderedSame }) {
+            if let updatedMatch = combinedStreams.first(where: { $0.urlString.caseInsensitiveCompare(selectedStream.urlString) == .orderedSame }) {
                 selectedStream = updatedMatch
+            } else if !combinedStreams.contains(where: { $0.station == selectedStation && $0.id == selectedStream.id }) {
+                selectedStream = streamsForSelectedStation.first ?? selectedStation.defaultStream
             }
         } catch {
             if discoveredStreams.isEmpty {
-                discoveredStreams = StationStream.defaultChilltraxStreams
+                discoveredStreams = StationStream.defaultAllStreams
             }
-            discoveryStatusMessage = "Could not reach chilltrax.com (\(error.localizedDescription)). Showing built-in Chilltrax streams."
+            discoveryStatusMessage = "Could not reach station websites (\(error.localizedDescription)). Showing built-in streams."
         }
     }
 
@@ -404,20 +509,27 @@ public final class AppState: ObservableObject {
 
     public func refreshNowPlayingMetadata() async {
         guard radioPlayer.isPlaying else { return }
-        // When streaming an official Chilltrax stream (or when no custom ICY metadata has overridden it),
-        // fetch live track details from chilltrax.com
-        let shouldQueryChilltraxSongInfo = selectedStream.isChilltraxOfficial
-        if shouldQueryChilltraxSongInfo {
+        let activeStation = selectedStation
+        let endpoints = stationAPIEndpoints[activeStation] ?? activeStation.defaultAPIEndpoints
+        let shouldQueryStationSongInfo = selectedStream.isChilltraxOfficial
+        if shouldQueryStationSongInfo {
             do {
-                let metadata = try await client.fetchNowPlaying(fetchAlbumCover: fetchAlbumCoverFromChilltrax)
-                guard radioPlayer.isPlaying else { return }
+                let metadata = try await client.fetchNowPlaying(
+                    station: activeStation,
+                    endpoints: endpoints,
+                    fetchAlbumCover: fetchAlbumCoverFromChilltrax
+                )
+                guard radioPlayer.isPlaying, selectedStation == activeStation else { return }
                 handleIncomingSongMetadata(metadata, sourceIsICY: false)
             } catch {
                 // Keep existing metadata on transient failure
             }
         } else if fetchAlbumCoverFromChilltrax && currentSong.coverURLString == nil {
-            if let cover = try? await client.fetchCurrentAlbumCoverURLString() {
-                guard radioPlayer.isPlaying else { return }
+            if let cover = try? await client.fetchCurrentAlbumCoverURLString(
+                station: activeStation,
+                endpoints: endpoints
+            ) {
+                guard radioPlayer.isPlaying, selectedStation == activeStation else { return }
                 var updated = currentSong
                 updated.coverURLString = cover
                 currentSong = updated
@@ -593,8 +705,13 @@ public final class AppState: ObservableObject {
     private func refreshCoverArtForSettingChange() async {
         if fetchAlbumCoverFromChilltrax {
             guard radioPlayer.isPlaying else { return }
-            if let cover = try? await client.fetchCurrentAlbumCoverURLString() {
-                guard radioPlayer.isPlaying else { return }
+            let activeStation = selectedStation
+            let endpoints = stationAPIEndpoints[activeStation] ?? activeStation.defaultAPIEndpoints
+            if let cover = try? await client.fetchCurrentAlbumCoverURLString(
+                station: activeStation,
+                endpoints: endpoints
+            ) {
+                guard radioPlayer.isPlaying, selectedStation == activeStation else { return }
                 var updated = currentSong
                 updated.coverURLString = cover
                 currentSong = updated

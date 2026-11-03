@@ -3,9 +3,6 @@ import AppKit
 
 public struct SettingsView: View {
     @ObservedObject public var appState: AppState
-    @State private var customStationName: String = ""
-    @State private var customStationURL: String = ""
-    @State private var customStreamValidationMessage: String?
 
     public init(appState: AppState) {
         self.appState = appState
@@ -30,12 +27,25 @@ public struct SettingsView: View {
 
     private var broadcastSettingsTab: some View {
         Form {
+            Section("Radio Station") {
+                Picker("Station", selection: Binding(
+                    get: { appState.selectedStation },
+                    set: { appState.selectStation($0) }
+                )) {
+                    ForEach(RadioStation.allCases) { station in
+                        Text(station.title)
+                            .tag(station)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+
             Section("Active Broadcast Stream") {
-                Picker("Current Station", selection: Binding(
+                Picker("Broadcast Stream", selection: Binding(
                     get: { appState.selectedStream },
                     set: { appState.selectStream($0) }
                 )) {
-                    ForEach(appState.allAvailableStreams) { stream in
+                    ForEach(appState.streamsForSelectedStation) { stream in
                         Text("\(stream.name) (\(stream.urlString))")
                             .tag(stream)
                     }
@@ -50,14 +60,26 @@ public struct SettingsView: View {
                         .foregroundStyle(.primary)
                         .textSelection(.enabled)
                 }
+
+                HStack {
+                    Text("Song Info API:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(appState.currentStationAPIEndpoints.songInfoURLString)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                }
             }
 
-            Section("Find Broadcast from chilltrax.com") {
+            Section("Find Broadcasts from chilltrax.com & radiodanz.com") {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Discover Official Chilltrax Streams")
+                        Text("Discover Official Broadcasts & API URLs")
                             .font(.subheadline.weight(.medium))
-                        Text("Scans https://www.chilltrax.com for live MP3, AAC+, and SSL broadcast stream links.")
+                        Text("Scans chilltrax.com and radiodanz.com for live broadcast stream links and API URL changes.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -84,60 +106,6 @@ public struct SettingsView: View {
                     Text(status)
                         .font(.caption)
                         .foregroundStyle(ChilltraxTheme.accentRed)
-                }
-            }
-
-            Section("Configure Custom Station URL Stream") {
-                TextField("Station Name (optional)", text: $customStationName, prompt: Text("e.g. SomaFM Groove Salad"))
-                TextField("Stream URL (http:// or https://)", text: $customStationURL, prompt: Text("https://ice1.somafm.com/groovesalad-128-mp3"))
-
-                HStack {
-                    if let validation = customStreamValidationMessage {
-                        Text(validation)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-                    Spacer()
-                    Button("Use Custom Stream") {
-                        let ok = appState.addAndSelectCustomStream(
-                            name: customStationName,
-                            urlString: customStationURL
-                        )
-                        if ok {
-                            customStationName = ""
-                            customStationURL = ""
-                            customStreamValidationMessage = nil
-                        } else {
-                            customStreamValidationMessage = "Please enter a valid http:// or https:// stream URL."
-                        }
-                    }
-                    .disabled(customStationURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-
-                if !appState.customStreams.isEmpty {
-                    ForEach(appState.customStreams) { custom in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(custom.name)
-                                    .font(.caption.weight(.semibold))
-                                Text(custom.urlString)
-                                    .font(.system(size: 10.5, design: .monospaced))
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Button("Select") {
-                                appState.selectStream(custom)
-                            }
-                            .controlSize(.small)
-
-                            Button(role: .destructive) {
-                                appState.removeCustomStream(custom)
-                            } label: {
-                                Image(systemName: "trash")
-                            }
-                            .buttonStyle(.borderless)
-                        }
-                    }
                 }
             }
         }

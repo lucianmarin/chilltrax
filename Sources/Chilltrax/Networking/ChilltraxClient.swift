@@ -1,10 +1,34 @@
 import Foundation
 
+public struct StationDiscoveryResult: Equatable, Sendable {
+    public let station: RadioStation
+    public let streams: [StationStream]
+    public let apiEndpoints: StationAPIEndpoints
+    public let didChangeAPIEndpoints: Bool
+
+    public init(
+        station: RadioStation,
+        streams: [StationStream],
+        apiEndpoints: StationAPIEndpoints,
+        didChangeAPIEndpoints: Bool
+    ) {
+        self.station = station
+        self.streams = streams
+        self.apiEndpoints = apiEndpoints
+        self.didChangeAPIEndpoints = didChangeAPIEndpoints
+    }
+}
+
 public final class ChilltraxClient: Sendable {
-    public static let websiteURL = URL(string: "https://www.chilltrax.com/")!
-    public static let songInfoURL = URL(string: "https://www.chilltrax.com/php/GetSongInformationNew.php")!
-    public static let coverImageURL = URL(string: "https://www.chilltrax.com/php/GetCoverImageNew.php")!
-    public static let lastTenURL = URL(string: "https://www.chilltrax.com/php/GetLastTenNew.php")!
+    public static let websiteURL = RadioStation.chilltrax.websiteURL
+    public static let songInfoURL = URL(string: RadioStation.chilltrax.defaultAPIEndpoints.songInfoURLString)!
+    public static let coverImageURL = URL(string: RadioStation.chilltrax.defaultAPIEndpoints.coverImageURLString)!
+    public static let lastTenURL = URL(string: RadioStation.chilltrax.defaultAPIEndpoints.lastTenURLString)!
+
+    public static let radioDanzWebsiteURL = RadioStation.radioDanz.websiteURL
+    public static let radioDanzSongInfoURL = URL(string: RadioStation.radioDanz.defaultAPIEndpoints.songInfoURLString)!
+    public static let radioDanzCoverImageURL = URL(string: RadioStation.radioDanz.defaultAPIEndpoints.coverImageURLString)!
+    public static let radioDanzLastTenURL = URL(string: RadioStation.radioDanz.defaultAPIEndpoints.lastTenURLString)!
 
     private let session: URLSession
 
@@ -22,21 +46,35 @@ public final class ChilltraxClient: Sendable {
 
     // MARK: - Current Song & Cover Art
 
-    public func fetchNowPlaying(fetchAlbumCover: Bool) async throws -> SongMetadata {
-        async let infoData = fetchData(from: Self.songInfoURL)
+    public func fetchNowPlaying(
+        station: RadioStation = .chilltrax,
+        endpoints: StationAPIEndpoints? = nil,
+        fetchAlbumCover: Bool
+    ) async throws -> SongMetadata {
+        let resolvedEndpoints = endpoints ?? station.defaultAPIEndpoints
+        let infoURL = resolvedEndpoints.songInfoURL ?? station.defaultAPIEndpoints.songInfoURL!
+        async let infoData = fetchData(from: infoURL)
         let rawInfo = try await infoData
         let decodedInfo = try JSONDecoder().decode(ChilltraxNowPlayingResponse.self, from: rawInfo)
 
         var coverURLString: String?
         if fetchAlbumCover {
-            coverURLString = try? await fetchCurrentAlbumCoverURLString()
+            coverURLString = try? await fetchCurrentAlbumCoverURLString(
+                station: station,
+                endpoints: resolvedEndpoints
+            )
         }
 
         return decodedInfo.toSongMetadata(coverURLString: coverURLString)
     }
 
-    public func fetchCurrentAlbumCoverURLString() async throws -> String? {
-        let data = try await fetchData(from: Self.coverImageURL)
+    public func fetchCurrentAlbumCoverURLString(
+        station: RadioStation = .chilltrax,
+        endpoints: StationAPIEndpoints? = nil
+    ) async throws -> String? {
+        let resolvedEndpoints = endpoints ?? station.defaultAPIEndpoints
+        let coverURL = resolvedEndpoints.coverImageURL ?? station.defaultAPIEndpoints.coverImageURL!
+        let data = try await fetchData(from: coverURL)
         let response = try JSONDecoder().decode(ChilltraxCoverResponse.self, from: data)
         guard let rawCover = response.cover?.trimmingCharacters(in: .whitespacesAndNewlines),
               !rawCover.isEmpty else {
@@ -47,11 +85,16 @@ public final class ChilltraxClient: Sendable {
             return rawCover
         }
         let cleaned = rawCover.hasPrefix("/") ? String(rawCover.dropFirst()) : rawCover
-        return "https://www.chilltrax.com/\(cleaned)"
+        return "\(station.websiteURL.absoluteString)\(cleaned)"
     }
 
-    public func fetchLastTenTracks() async throws -> [SongMetadata] {
-        let data = try await fetchData(from: Self.lastTenURL)
+    public func fetchLastTenTracks(
+        station: RadioStation = .chilltrax,
+        endpoints: StationAPIEndpoints? = nil
+    ) async throws -> [SongMetadata] {
+        let resolvedEndpoints = endpoints ?? station.defaultAPIEndpoints
+        let url = resolvedEndpoints.lastTenURL ?? station.defaultAPIEndpoints.lastTenURL!
+        let data = try await fetchData(from: url)
         let items = try JSONDecoder().decode([ChilltraxLastTenItem].self, from: data)
         return items.compactMap { item in
             let artist = ChilltraxNowPlayingResponse.decodeHTMLEntities(item.artist ?? "")
@@ -68,22 +111,116 @@ public final class ChilltraxClient: Sendable {
         }
     }
 
-    // MARK: - Discover Broadcast Streams from chilltrax.com
+    // MARK: - Discover Broadcast Streams & API URLs from chilltrax.com and radiodanz.com
 
-    /// Fetches `https://www.chilltrax.com/` and extracts all broadcast stream URLs advertised on the website,
-    /// including both the web player stream URL (`streamurl:`) and the `HOW TO LISTEN` stream links.
-    public func discoverBroadcastStreamsFromWebsite() async throws -> [StationStream] {
-        let data = try await fetchData(from: Self.websiteURL)
-        guard let html = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else {
-            return StationStream.defaultChilltraxStreams
-        }
-        let discovered = Self.parseBroadcastStreams(fromHTML: html)
-        return discovered.isEmpty ? StationStream.defaultChilltraxStreams : discovered
+    public func discoverBroadcastStreamsFromWebsite(for station: RadioStation = .chilltrax) async throws -> [StationStream] {
+        let result = try await discoverStationConfiguration(for: station)
+        return result.streams
     }
 
-    public static func parseBroadcastStreams(fromHTML html: String) -> [StationStream] {
+    public func discoverStationConfiguration(
+        for station: RadioStation,
+        previousEndpoints: StationAPIEndpoints? = nil
+    ) async throws -> StationDiscoveryResult {
+        let data = try await fetchData(from: station.websiteURL)
+        guard let html = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else {
+            let defaults = station.defaultAPIEndpoints
+            return StationDiscoveryResult(
+                station: station,
+                streams: station.defaultStreams,
+                apiEndpoints: defaults,
+                didChangeAPIEndpoints: false
+            )
+        }
+        let discoveredStreams = Self.parseBroadcastStreams(fromHTML: html, station: station)
+        let streams = discoveredStreams.isEmpty ? station.defaultStreams : discoveredStreams
+        let discoveredEndpoints = Self.parseAPIEndpoints(fromHTML: html, station: station)
+        let baseline = previousEndpoints ?? station.defaultAPIEndpoints
+        return StationDiscoveryResult(
+            station: station,
+            streams: streams,
+            apiEndpoints: discoveredEndpoints,
+            didChangeAPIEndpoints: discoveredEndpoints != baseline
+        )
+    }
+
+    /// Scans both `chilltrax.com` and `radiodanz.com` concurrently for broadcast streams and API URL changes.
+    public func discoverAllStationsConfiguration(
+        previousEndpointsByStation: [RadioStation: StationAPIEndpoints] = [:]
+    ) async throws -> [RadioStation: StationDiscoveryResult] {
+        var results: [RadioStation: StationDiscoveryResult] = [:]
+        var lastError: Error?
+
+        for station in RadioStation.allCases {
+            do {
+                let result = try await discoverStationConfiguration(
+                    for: station,
+                    previousEndpoints: previousEndpointsByStation[station]
+                )
+                results[station] = result
+            } catch {
+                lastError = error
+            }
+        }
+
+        if results.isEmpty, let lastError {
+            throw lastError
+        }
+
+        return results
+    }
+
+    public static func parseAPIEndpoints(fromHTML html: String, station: RadioStation = .chilltrax) -> StationAPIEndpoints {
+        var endpoints = station.defaultAPIEndpoints
+
+        func resolveEndpoint(_ rawPath: String) -> String {
+            let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://") {
+                return trimmed
+            }
+            if let resolved = URL(string: trimmed, relativeTo: station.websiteURL)?.absoluteURL {
+                return resolved.absoluteString
+            }
+            let cleaned = trimmed.hasPrefix("/") ? String(trimmed.dropFirst()) : trimmed
+            return "\(station.websiteURL.absoluteString)\(cleaned)"
+        }
+
+        func firstMatch(pattern: String) -> String? {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive, .dotMatchesLineSeparators]) else {
+                return nil
+            }
+            let nsRange = NSRange(html.startIndex..<html.endIndex, in: html)
+            guard let match = regex.firstMatch(in: html, options: [], range: nsRange),
+                  match.numberOfRanges > 1,
+                  let range = Range(match.range(at: 1), in: html) else {
+                return nil
+            }
+            return String(html[range])
+        }
+
+        if let songPath = firstMatch(pattern: #"function\s+getSongInformation\s*\(\s*\)\s*\{[^}]*?(?:getJSON|fetch|ajax)\s*\(\s*["']([^"']+\.php[^"']*)["']"#)
+            ?? firstMatch(pattern: #"["']((?:https?://[^"']+/)?php/GetSongInformation[^"']*\.php[^"']*)["']"#) {
+            endpoints.songInfoURLString = resolveEndpoint(songPath)
+        }
+
+        if let coverPath = firstMatch(pattern: #"function\s+getCover\s*\(\s*\)\s*\{[^}]*?(?:getJSON|fetch|ajax)\s*\(\s*["']([^"']+\.php[^"']*)["']"#)
+            ?? firstMatch(pattern: #"["']((?:https?://[^"']+/)?php/GetCoverImage[^"']*\.php[^"']*)["']"#) {
+            endpoints.coverImageURLString = resolveEndpoint(coverPath)
+        }
+
+        if let lastTenPath = firstMatch(pattern: #"function\s+updateLast10\s*\(\s*\)\s*\{[^}]*?(?:getJSON|fetch|ajax)\s*\(\s*["']([^"']+\.php[^"']*)["']"#)
+            ?? firstMatch(pattern: #"["']((?:https?://[^"']+/)?php/GetLastTen[^"']*\.php[^"']*)["']"#) {
+            endpoints.lastTenURLString = resolveEndpoint(lastTenPath)
+        }
+
+        return endpoints
+    }
+
+    public static func parseBroadcastStreams(fromHTML html: String, station: RadioStation = .chilltrax) -> [StationStream] {
         var streams: [StationStream] = []
         var seenURLs = Set<String>()
+        let stationTitle = station.title
+        let lowerStationTitle = stationTitle.lowercased()
 
         func appendStream(_ stream: StationStream) {
             let key = stream.urlString.lowercased()
@@ -104,10 +241,11 @@ public final class ChilltraxClient: Sendable {
                         appendStream(
                             StationStream(
                                 id: rawURL,
-                                name: "Chilltrax — Web Player Live Stream (128Kbps MP3 HTTPS)",
+                                name: "\(stationTitle) — Web Player Live Stream (128Kbps MP3 HTTPS)",
                                 urlString: rawURL,
                                 formatDetails: "128Kbps MP3 • HTTPS Direct",
-                                isChilltraxOfficial: true
+                                isChilltraxOfficial: true,
+                                station: station
                             )
                         )
                     }
@@ -135,37 +273,59 @@ public final class ChilltraxClient: Sendable {
                 let isStreamLink = lowerHref.contains("streams.electronicmusicradiogroup.org")
                     || lowerHref.contains("chilltrax.com/listen")
                     || lowerHref.contains("streamssleu.chilltrax.com")
+                    || lowerHref.contains("radiodanz.com/results")
+                    || lowerHref.contains("streamssl.radiodanz.com")
                     || lowerHref.hasSuffix(".pls")
+                    || lowerHref.contains(".pls?")
                     || lowerHref.hasSuffix(".m3u")
                     || lowerHref.hasSuffix(".m3u8")
 
                 guard isStreamLink, !label.isEmpty else { continue }
 
                 let formatDetails = extractFormatBadge(from: label)
-                let displayName = label.lowercased().contains("chilltrax") ? label : "Chilltrax — \(label)"
+                let displayName = label.lowercased().contains(lowerStationTitle) ? label : "\(stationTitle) — \(label)"
                 appendStream(
                     StationStream(
                         id: href,
                         name: displayName,
                         urlString: href,
                         formatDetails: formatDetails,
-                        isChilltraxOfficial: true
+                        isChilltraxOfficial: true,
+                        station: station
                     )
                 )
             }
         }
 
-        // 3. Ensure direct EU SSL stream is also available if chilltrax.com/listen was found
-        if seenURLs.contains("https://www.chilltrax.com/listen") || seenURLs.contains("https://www.chilltrax.com/listen/?mode=redirect") {
-            appendStream(
-                StationStream(
-                    id: "https://streamssleu.chilltrax.com/stream?sid=1",
-                    name: "Chilltrax — Direct SSL Stream (128Kbps MP3)",
-                    urlString: "https://streamssleu.chilltrax.com/stream?sid=1",
-                    formatDetails: "128Kbps MP3 • Direct SSL",
-                    isChilltraxOfficial: true
+        // 3. Ensure direct SSL stream is also available for the station
+        switch station {
+        case .chilltrax:
+            if seenURLs.contains("https://www.chilltrax.com/listen") || seenURLs.contains("https://www.chilltrax.com/listen/?mode=redirect") {
+                appendStream(
+                    StationStream(
+                        id: "https://streamssleu.chilltrax.com/stream?sid=1",
+                        name: "Chilltrax — Direct SSL Stream (128Kbps MP3)",
+                        urlString: "https://streamssleu.chilltrax.com/stream?sid=1",
+                        formatDetails: "128Kbps MP3 • Direct SSL",
+                        isChilltraxOfficial: true,
+                        station: .chilltrax
+                    )
                 )
-            )
+            }
+        case .radioDanz:
+            if seenURLs.contains("https://www.radiodanz.com/results/?mode=redirect")
+                || seenURLs.contains("http://streamssl.radiodanz.com/listen.pls?sid=1") {
+                appendStream(
+                    StationStream(
+                        id: "https://streamssl.radiodanz.com/live",
+                        name: "Radio Danz — Direct SSL Stream (128Kbps MP3)",
+                        urlString: "https://streamssl.radiodanz.com/live",
+                        formatDetails: "128Kbps MP3 • Direct SSL",
+                        isChilltraxOfficial: true,
+                        station: .radioDanz
+                    )
+                )
+            }
         }
 
         return streams
@@ -178,13 +338,28 @@ public final class ChilltraxClient: Sendable {
         let urlString = originalURL.absoluteString.trimmingCharacters(in: .whitespacesAndNewlines)
         let lower = urlString.lowercased()
 
-        // Direct chilltrax.com/listen (without ?mode=redirect) serves a PLS playlist
-        if lower == "https://www.chilltrax.com/listen" || lower == "https://www.chilltrax.com/listen/" || lower.hasSuffix(".pls") {
+        // Direct chilltrax.com/listen or any .pls playlist URL
+        if lower == "https://www.chilltrax.com/listen"
+            || lower == "https://www.chilltrax.com/listen/"
+            || lower.hasSuffix(".pls")
+            || lower.contains(".pls?") {
             if let resolved = await resolvePLSPlaylist(from: originalURL) {
                 return resolved
             }
             if lower.contains("chilltrax.com/listen") {
                 return URL(string: "https://streamssleu.chilltrax.com/stream?sid=1") ?? originalURL
+            }
+            if lower.contains("radiodanz.com") {
+                return URL(string: "https://streamssl.radiodanz.com/live") ?? originalURL
+            }
+            if let components = URLComponents(url: originalURL, resolvingAgainstBaseURL: false),
+               components.port != nil {
+                var streamComponents = components
+                streamComponents.path = "/;stream.mp3"
+                streamComponents.query = nil
+                if let candidate = streamComponents.url {
+                    return candidate
+                }
             }
         }
 

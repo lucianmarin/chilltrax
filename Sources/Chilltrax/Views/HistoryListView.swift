@@ -109,12 +109,24 @@ private struct HistoryRowView: View {
                     .font(.system(size: 10.5, design: .rounded))
                     .foregroundStyle(.secondary)
 
-                if let buyURL = entry.buyURL {
-                    Link(destination: buyURL) {
-                        Text("Apple Music")
-                            .font(.system(size: 9.5, weight: .medium))
-                            .foregroundStyle(ChilltraxTheme.accentRed)
+                HStack(spacing: 6) {
+                    if let buyURL = entry.buyURL {
+                        Link(destination: buyURL) {
+                            Text("Apple Music")
+                                .font(.system(size: 9.5, weight: .medium))
+                                .foregroundStyle(ChilltraxTheme.accentRed)
+                        }
                     }
+
+                    Text(entry.stationBadgeLabel)
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 4.5)
+                        .padding(.vertical, 1.5)
+                        .background(
+                            RoundedRectangle(cornerRadius: 3.5, style: .continuous)
+                                .fill(Color.primary.opacity(0.07))
+                        )
                 }
             }
         }

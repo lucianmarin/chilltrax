@@ -201,7 +201,7 @@ public struct CompactPlayerView: View {
     @ViewBuilder
     private var albumArtworkView: some View {
         Button(action: {
-            if let url = appleMusicURL {
+            if isSongPlaying, let url = appleMusicURL {
                 NSWorkspace.shared.open(url)
             }
         }) {
@@ -223,7 +223,7 @@ public struct CompactPlayerView: View {
                     defaultStationArtwork
                 }
 
-                if isHoveringArtwork {
+                if isSongPlaying && isHoveringArtwork {
                     ZStack {
                         Color.black.opacity(0.55)
                         Image(systemName: "apple.logo")
@@ -243,17 +243,19 @@ public struct CompactPlayerView: View {
         .buttonStyle(.plain)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
-                isHoveringArtwork = hovering
+                isHoveringArtwork = hovering && isSongPlaying
             }
         }
-        .help("Open on Apple Music")
+        .help(isSongPlaying ? "Open on Apple Music" : "")
     }
 
     private var defaultStationArtwork: some View {
-        Image(nsImage: AppIcon.renderPlaceholderArtwork(pointSize: 136))
-            .resizable()
-            .interpolation(.high)
-            .aspectRatio(contentMode: .fill)
+        ZStack {
+            ChilltraxTheme.visualizerBackground(for: colorScheme)
+            Image(systemName: "apple.logo")
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(ChilltraxTheme.visualizerContrastColor(for: colorScheme))
+        }
     }
 
     private var historySearchBox: some View {

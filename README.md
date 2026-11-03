@@ -2,26 +2,26 @@
 
 ![screenshot](screenshot.jpg)
 
-Chilltrax is a native macOS one-radio-station player built with SwiftUI and AVFoundation for **Chilltrax — The World's Chillout Channel** (`chilltrax.com`), with full support for custom station stream URLs.
+Chilltrax is a native macOS radio player built with SwiftUI and AVFoundation for **Chilltrax — The World's Chillout Channel** (`chilltrax.com`) and its sister station **Radio Danz — The World's Pure Dance Channel** (`radiodanz.com`).
 
 ## Specification & Requirements
 
 1. **Native macOS Application**:
    - Built with Swift Package Manager targeting **macOS 14+ (Sonoma)** using SwiftUI and AppKit window customization (`titleVisibility = .hidden`, `.unified` toolbar, `.fullSizeContentView`), matching `macreply` and `macnews`.
-2. **Station Stream Discovery & Custom Stream Configuration**:
-   - **Find Broadcast from `chilltrax.com`**: Queries and parses `https://www.chilltrax.com` in Settings to discover official broadcast streams (including the firewall-friendly SSL stream and Shoutcast streams), resolving `.pls` and redirect endpoints automatically.
-   - **Custom Station URL**: Allows configuring and switching to any custom radio stream URL (HTTP/HTTPS MP3, AAC+, HLS, or `.pls` playlist).
+2. **Chilltrax & Radio Danz Station Switching and Broadcast Discovery**:
+   - **Switch Between Chilltrax & Radio Danz**: Allows switching between **Chilltrax** (`TRAX`, default) and **Radio Danz** (`DANZ`) in Settings.
+   - **Find Broadcasts**: Queries and parses both `https://www.chilltrax.com` and `https://www.radiodanz.com` in Settings to discover official broadcast streams and API URL changes (`GetSongInformationNew.php`, `GetCoverImageNew.php`, `GetLastTenNew.php`), resolving `.pls` and redirect endpoints automatically.
 3. **Real-Time Audio Visualizer (Waveform or Spectrum)**:
-   - Interactive visualizer supporting both **Waveform** (smooth multi-layered oscillating sine/audio wave) and **Spectrum** (frequency over time across vertical bars with bass on the left, mids in the middle, and treble on the right) modes, switchable directly from the player or Settings.
+   - Interactive visualizer supporting both **Waveform** and **Spectrum** modes, switchable directly from the player or Settings.
 4. **Playback Controls & Current Song Display**:
    - Play / Pause toggle (plays at maximum volume `1.0` so system volume controls audio level), left-aligned toolbar station status badge (`READY` / `LIVE` / `PAUSED` / `CONNECTING…` / `ERROR`) that opens the Settings panel when clicked, current song title, artist, album/mix badge, and album cover that shows an Apple logo on mouse hover to open the song on Apple Music.
-5. **Album Cover Fetching Setting**:
-   - Toggleable setting to fetch and display the currently playing song's album artwork from `chilltrax.com` (`php/GetCoverImageNew.php`).
+5. **Album Cover Fetching & Local Cover Cache**:
+   - Toggleable setting to fetch and display the currently playing song's album artwork from the active station (`chilltrax.com` or `radiodanz.com`), caching fetched history covers locally on disk (`~/Library/Application Support/Chilltrax/Covers`) and deleting them when clearing history.
 6. **macOS Notifications on Song Change**:
    - Sends native macOS notifications (`UNUserNotificationCenter`) whenever the playing track changes, displaying the new song title, artist, and album/mix (configurable in Settings).
-7. **Compact Player Main UI with Expandable Searchable History**:
+7. **Compact Player Main UI with Expandable Searchable History (`TRAX` / `DANZ` Labels)**:
    - Main UI is a sleek **compact player** window with a full-width visualizer across the bottom.
-   - Clicking the **History SF Symbol** (`clock.arrow.circlepath`) with the live song counter in the toolbar smoothly expands the window to reveal a **searchable history list** of all played songs (filterable by title, artist, album/mix, or station).
+   - Clicking the **History SF Symbol** (`clock.arrow.circlepath`) with the live song counter in the toolbar smoothly expands the window to reveal a **searchable history list** of all played songs (filterable by title, artist, album/mix, or station), with each song marked with a 4-character `TRAX` or `DANZ` badge.
 8. **Compressed Local Song History Persistence**:
    - Every song played for at least the configured duration (0–99 seconds, default 10 seconds) is persisted locally across app restarts in an **efficiently compressed text file** (`~/Library/Application Support/Chilltrax/history.tsv.lzfse`), using tab-separated UTF-8 text compressed with Apple's native `Compression` (`LZFSE`) algorithm (matching `monochrome`).
 

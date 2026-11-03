@@ -33,6 +33,48 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertTrue(streams.contains { $0.urlString == "http://streams.electronicmusicradiogroup.org:9000" })
         XCTAssertTrue(streams.contains { $0.urlString == "https://www.chilltrax.com/listen" })
         XCTAssertTrue(streams.contains { $0.urlString == "https://streamssleu.chilltrax.com/stream?sid=1" })
+        XCTAssertTrue(streams.allSatisfy { $0.station == .chilltrax })
+    }
+
+    func testParseRadioDanzBroadcastStreamsAndAPIEndpoints() {
+        let radioDanzHTML = """
+        <html>
+        <body>
+        <script>
+            streamurl: "https://www.radiodanz.com/results/?mode=redirect",
+            function getCover() {
+                $.getJSON('php/GetCoverImageV2.php', function(jd) {});
+            }
+            function getSongInformation() {
+                $.getJSON('php/GetSongInformationV2.php', function(jd) {});
+            }
+            function updateLast10() {
+                $.getJSON('php/GetLastTenV2.php', function(jd) {});
+            }
+        </script>
+        <div id="listen-section">
+            <ul>
+                <li><a href="http://streams.electronicmusicradiogroup.org:8030/listen.pls" target="_blank">Highest (HD) Quality 128Kbps AAC+</a></li>
+                <li><a href="http://streams.electronicmusicradiogroup.org:8000/listen.pls" target="_blank">High Quality 128Kbps MP3</a></li>
+                <li><a href="http://streamssl.radiodanz.com/listen.pls?sid=1" target="_blank">High Quality 128Kbps MP3 (firewall friendly)</a></li>
+            </ul>
+        </div>
+        </body>
+        </html>
+        """
+
+        let streams = ChilltraxClient.parseBroadcastStreams(fromHTML: radioDanzHTML, station: .radioDanz)
+        XCTAssertGreaterThanOrEqual(streams.count, 5)
+        XCTAssertTrue(streams.contains { $0.urlString == "https://www.radiodanz.com/results/?mode=redirect" })
+        XCTAssertTrue(streams.contains { $0.urlString == "http://streams.electronicmusicradiogroup.org:8030/listen.pls" })
+        XCTAssertTrue(streams.contains { $0.urlString == "http://streamssl.radiodanz.com/listen.pls?sid=1" })
+        XCTAssertTrue(streams.contains { $0.urlString == "https://streamssl.radiodanz.com/live" })
+        XCTAssertTrue(streams.allSatisfy { $0.station == .radioDanz })
+
+        let endpoints = ChilltraxClient.parseAPIEndpoints(fromHTML: radioDanzHTML, station: .radioDanz)
+        XCTAssertEqual(endpoints.songInfoURLString, "https://www.radiodanz.com/php/GetSongInformationV2.php")
+        XCTAssertEqual(endpoints.coverImageURLString, "https://www.radiodanz.com/php/GetCoverImageV2.php")
+        XCTAssertEqual(endpoints.lastTenURLString, "https://www.radiodanz.com/php/GetLastTenV2.php")
     }
 
     func testParsePLSStreamURL() {
@@ -169,24 +211,44 @@ final class ChilltraxTests: XCTestCase {
         state.toggleVisualizerMode()
         XCTAssertEqual(state.visualizerMode, .waveform)
 
+        // Default station is Chilltrax (TRAX) and can switch to Radio Danz (DANZ)
+        XCTAssertEqual(state.selectedStation, .chilltrax)
+        XCTAssertEqual(state.selectedStation.badgeLabel, "TRAX")
+        XCTAssertEqual(state.selectedStream.station, .chilltrax)
+
+        state.selectStation(.radioDanz)
+        XCTAssertEqual(state.selectedStation, .radioDanz)
+        XCTAssertEqual(state.selectedStation.badgeLabel, "DANZ")
+        XCTAssertEqual(state.selectedStream.station, .radioDanz)
+
+        state.selectStation(.chilltrax)
+        XCTAssertEqual(state.selectedStation, .chilltrax)
+        XCTAssertEqual(state.selectedStream.station, .chilltrax)
+
         // Test custom stream configuration
         XCTAssertFalse(state.addAndSelectCustomStream(name: "Invalid", urlString: "not-a-url"))
         XCTAssertTrue(state.addAndSelectCustomStream(name: "Ambient Sleeping Pill", urlString: "https://radio.stereoscenic.com/asp-s"))
         XCTAssertEqual(state.selectedStream.name, "Ambient Sleeping Pill")
         XCTAssertEqual(state.selectedStream.urlString, "https://radio.stereoscenic.com/asp-s")
 
-        // Test song change recording & search filtering while playing
+        // Test song change recording & TRAX / DANZ history labels across stations
+        state.selectStation(.chilltrax)
         state.radioPlayer.setSimulatedPlaybackStateForTesting(isPlaying: true, status: .playing)
         state.handleIncomingSongMetadata(
             SongMetadata(artist: "Air", title: "La Femme d'Argent", albumOrMix: "Moon Safari", coverURLString: "https://example.com/air.jpg"),
             sourceIsICY: false
         )
+        state.selectStation(.radioDanz, autoPlayIfCurrentlyPlaying: false)
         state.handleIncomingSongMetadata(
             SongMetadata(artist: "Massive Attack", title: "Teardrop", albumOrMix: "Mezzanine", coverURLString: "https://example.com/ma.jpg"),
             sourceIsICY: false
         )
 
         XCTAssertEqual(state.historyEntries.count, 2)
+        XCTAssertEqual(state.historyEntries[0].stationBadgeLabel, "DANZ")
+        XCTAssertEqual(state.historyEntries[1].stationBadgeLabel, "TRAX")
+        XCTAssertTrue(state.historyEntries[0].matches(searchQuery: "DANZ"))
+        XCTAssertTrue(state.historyEntries[1].matches(searchQuery: "TRAX"))
         XCTAssertFalse(state.isHistoryExpanded)
 
         // Searching with matching results automatically expands the player with history results
