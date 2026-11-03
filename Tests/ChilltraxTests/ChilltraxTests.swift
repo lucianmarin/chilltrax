@@ -474,4 +474,61 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertEqual(state.historyEntries.first?.artist, "Moby")
         XCTAssertEqual(state.historyEntries.first?.title, "Porcelain")
     }
+
+    @MainActor
+    func testProgressiveHistoryLoading50AtATimeAndFullSearch() {
+        let suiteName = "ChilltraxPaginationTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let tempFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("paged-history-\(UUID().uuidString).tsv.lzfse")
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        let store = CompressedHistoryStore(fileURL: tempFile)
+        var seeded = [SongHistoryEntry]()
+        let baseDate = Date(timeIntervalSince1970: 1_700_000_000)
+        for i in 1...120 {
+            seeded.append(
+                SongHistoryEntry(
+                    playedAt: baseDate.addingTimeInterval(Double(120 - i) * 60),
+                    artist: "Artist \(i)",
+                    title: "Track \(i)",
+                    albumOrMix: "Album \(i)",
+                    stationName: "Chilltrax",
+                    stationURLString: StationStream.defaultStream.urlString
+                )
+            )
+        }
+        store.save(seeded)
+
+        let state = AppState(
+            historyStore: store,
+            defaults: defaults,
+            startPollingAutomatically: false,
+            minimumHistoryPlayDuration: 0
+        )
+
+        // Initially loads 50 displayed entries out of 120 total
+        XCTAssertEqual(state.historyEntries.count, 120)
+        XCTAssertEqual(state.filteredHistoryEntries.count, 120)
+        XCTAssertEqual(state.displayedHistoryEntries.count, 50)
+        XCTAssertTrue(state.hasMoreHistoryEntries)
+
+        // Searching searches across all 120 entries, even entries beyond the first 50
+        state.historySearchQuery = "Track 115"
+        XCTAssertEqual(state.filteredHistoryEntries.count, 1)
+        XCTAssertEqual(state.displayedHistoryEntries.count, 1)
+        XCTAssertEqual(state.displayedHistoryEntries.first?.title, "Track 115")
+
+        // Clearing search resets progressive pagination to 50 and loads 50 more at a time on scroll
+        state.historySearchQuery = ""
+        XCTAssertEqual(state.displayedHistoryEntries.count, 50)
+        state.loadMoreHistoryIfNeeded(currentEntry: state.displayedHistoryEntries.last)
+        XCTAssertEqual(state.displayedHistoryEntries.count, 100)
+        XCTAssertTrue(state.hasMoreHistoryEntries)
+        state.loadMoreHistoryIfNeeded(currentEntry: state.displayedHistoryEntries.last)
+        XCTAssertEqual(state.displayedHistoryEntries.count, 120)
+        XCTAssertFalse(state.hasMoreHistoryEntries)
+    }
 }

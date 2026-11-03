@@ -66,9 +66,14 @@ public final class AppState: ObservableObject {
             }
         }
     }
+    nonisolated public static let historyPageSize = 50
+
     @Published public var isHistoryExpanded: Bool {
         didSet {
             defaults.set(isHistoryExpanded, forKey: DefaultsKeys.isHistoryExpanded)
+            if !isHistoryExpanded {
+                visibleHistoryLimit = Self.historyPageSize
+            }
         }
     }
     @Published public var historyCommitDelaySeconds: Int {
@@ -85,9 +90,11 @@ public final class AppState: ObservableObject {
     }
     @Published public var historySearchQuery: String = "" {
         didSet {
+            visibleHistoryLimit = Self.historyPageSize
             updateHistoryExpansionForSearch(previousQuery: oldValue)
         }
     }
+    @Published public private(set) var visibleHistoryLimit: Int = AppState.historyPageSize
     @Published public private(set) var historyEntries: [SongHistoryEntry] = []
     @Published public private(set) var isDiscoveringBroadcasts: Bool = false
     @Published public private(set) var discoveryStatusMessage: String?
@@ -112,6 +119,28 @@ public final class AppState: ObservableObject {
             return historyEntries
         }
         return historyEntries.filter { $0.matches(searchQuery: historySearchQuery) }
+    }
+
+    public var displayedHistoryEntries: [SongHistoryEntry] {
+        Array(filteredHistoryEntries.prefix(visibleHistoryLimit))
+    }
+
+    public var hasMoreHistoryEntries: Bool {
+        filteredHistoryEntries.count > visibleHistoryLimit
+    }
+
+    public func loadMoreHistoryIfNeeded(currentEntry: SongHistoryEntry? = nil) {
+        let total = filteredHistoryEntries.count
+        guard total > visibleHistoryLimit else { return }
+        if let currentEntry {
+            let currentDisplayed = displayedHistoryEntries
+            let thresholdIndex = max(0, currentDisplayed.count - 5)
+            guard let index = currentDisplayed.firstIndex(where: { $0.id == currentEntry.id }),
+                  index >= thresholdIndex else {
+                return
+            }
+        }
+        visibleHistoryLimit = min(total, visibleHistoryLimit + Self.historyPageSize)
     }
 
     public var allAvailableStreams: [StationStream] {

@@ -30,20 +30,24 @@ public struct HistoryListView: View {
                 .padding(.horizontal, 16)
                 .frame(height: ChilltraxTheme.historyRowHeight)
             } else {
-                ScrollView(.vertical, showsIndicators: appState.filteredHistoryEntries.count > ChilltraxTheme.maxVisibleHistoryRows) {
+                ScrollView(.vertical, showsIndicators: appState.displayedHistoryEntries.count > ChilltraxTheme.maxVisibleHistoryRows) {
                     LazyVStack(spacing: 0) {
-                        ForEach(Array(appState.filteredHistoryEntries.enumerated()), id: \.element.id) { index, entry in
+                        let displayed = appState.displayedHistoryEntries
+                        ForEach(Array(displayed.enumerated()), id: \.element.id) { index, entry in
                             HistoryRowView(
                                 entry: entry,
                                 showCover: appState.fetchAlbumCoverFromChilltrax,
                                 formattedDate: Self.timeFormatter.string(from: entry.playedAt),
-                                showBottomDivider: index < appState.filteredHistoryEntries.count - 1
+                                showBottomDivider: index < displayed.count - 1 || appState.hasMoreHistoryEntries
                             )
                             .frame(height: ChilltraxTheme.historyRowHeight)
+                            .onAppear {
+                                appState.loadMoreHistoryIfNeeded(currentEntry: entry)
+                            }
                         }
                     }
                 }
-                .frame(height: ChilltraxTheme.historyListHeight(forResultCount: appState.filteredHistoryEntries.count))
+                .frame(height: ChilltraxTheme.historyListHeight(forResultCount: appState.displayedHistoryEntries.count))
             }
         }
     }
