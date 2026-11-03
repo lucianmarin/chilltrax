@@ -6,6 +6,8 @@ public enum ChilltraxTheme {
     public static let accentRed = Color(red: 0xE6 / 255.0, green: 0x0E / 255.0, blue: 0x30 / 255.0)
     public static let visualizerBlack = Color.black
     public static let visualizerWhite = Color.white
+    /// Neutral `#808080` gray for the third waveform and third spectrum bar color
+    public static let visualizerGray = Color(red: 0x80 / 255.0, green: 0x80 / 255.0, blue: 0x80 / 255.0)
 
     public static func visualizerBackground(for colorScheme: ColorScheme) -> Color {
         colorScheme == .dark ? visualizerBlack : visualizerWhite

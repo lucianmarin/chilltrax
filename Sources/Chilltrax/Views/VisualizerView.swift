@@ -5,6 +5,7 @@ public struct VisualizerView: View {
 
     public let mode: VisualizerMode
     public let levels: [CGFloat]
+    public let trailLevels: [CGFloat]?
     public let phase: Double
     public let isPlaying: Bool
     public var onToggleMode: (() -> Void)?
@@ -12,12 +13,14 @@ public struct VisualizerView: View {
     public init(
         mode: VisualizerMode,
         levels: [CGFloat],
+        trailLevels: [CGFloat]? = nil,
         phase: Double,
         isPlaying: Bool,
         onToggleMode: (() -> Void)? = nil
     ) {
         self.mode = mode
         self.levels = levels
+        self.trailLevels = trailLevels
         self.phase = phase
         self.isPlaying = isPlaying
         self.onToggleMode = onToggleMode
@@ -72,10 +75,12 @@ public struct VisualizerView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
+    public static let verticalInset: CGFloat = 4
+
     public static func interpolatedLevel(in levels: [CGFloat], at progress: CGFloat) -> CGFloat {
-        guard !levels.isEmpty else { return 0.08 }
+        guard !levels.isEmpty else { return 0.07 }
         if levels.count == 1 {
-            return max(0.08, min(1.0, levels[0]))
+            return max(0.07, min(1.0, levels[0]))
         }
         let clampedProgress = max(0.0, min(1.0, progress))
         let scaled = clampedProgress * CGFloat(levels.count - 1)
@@ -84,16 +89,16 @@ public struct VisualizerView: View {
         let fraction = scaled - CGFloat(lowerIndex)
         let cosineBlend = CGFloat((1.0 - cos(Double(fraction) * .pi)) * 0.5)
         let interpolated = levels[lowerIndex] * (1.0 - cosineBlend) + levels[upperIndex] * cosineBlend
-        return max(0.08, min(1.0, interpolated))
+        return max(0.07, min(1.0, interpolated))
     }
 
     public static func spectrumAverageHeight(levels: [CGFloat], size: CGSize) -> CGFloat {
-        let verticalPadding: CGFloat = 8
-        let usableHeight = max(8, size.height - verticalPadding * 2)
+        let usableHeight = max(8, size.height - verticalInset * 2)
         guard !levels.isEmpty else { return 4 }
         let total = levels.reduce(CGFloat(0)) { partial, rawLevel in
-            let clamped = max(0.08, min(1.0, rawLevel))
-            return partial + max(4, usableHeight * clamped)
+            let clamped = max(0.07, min(1.0, rawLevel))
+            let shaped = CGFloat(pow(Double(clamped), 1.15))
+            return partial + max(4, usableHeight * shaped)
         }
         return total / CGFloat(levels.count)
     }
@@ -102,31 +107,60 @@ public struct VisualizerView: View {
         spectrumAverageHeight(levels: levels, size: size)
     }
 
-    public static func waveformPeakVerticalSpan(levels: [CGFloat], phase: Double, size: CGSize) -> CGFloat {
-        let midY = size.height / 2.0
-        let verticalPadding: CGFloat = 8
-        let usableAmplitude = max(4, (size.height - verticalPadding * 2) / 2.0)
-        let steps = max(96, Int(size.width / 2.5))
-        let averageLevel: CGFloat = {
-            guard !levels.isEmpty else { return 0.08 }
-            let sum = levels.reduce(0) { $0 + max(0.08, min(1.0, $1)) }
-            return sum / CGFloat(levels.count)
-        }()
+    /// Computes normalized `(-1.0...1.0)` vertical wave offsets for the primary red waveform, ensuring punchy peaks reach full amplitude regardless of phase.
+    private static func computePrimaryWaveOffsets(
+        levels: [CGFloat],
+        phase: Double,
+        steps: Int,
+        averageLevel: CGFloat,
+        peakLevel: CGFloat
+    ) -> [Double] {
+        var rawOffsets = [Double]()
+        rawOffsets.reserveCapacity(steps + 1)
+        var maxAbsRaw: Double = 0.001
 
-        var minY = midY
-        var maxY = midY
         for step in 0...steps {
             let progress = CGFloat(step) / CGFloat(steps)
             let binLevel = interpolatedLevel(in: levels, at: progress)
-            let isHighIntensity = binLevel > 0.65
-            let edgeWindow = pow(sin(Double(progress) * .pi), 0.55)
-            let effectiveLevel = min(1.0, binLevel * 0.85 + averageLevel * 0.15)
-            let carrier = sin(Double(progress) * .pi * 8.0 + phase * 2.1)
-            let sub = sin(Double(progress) * .pi * 3.0 - phase * 1.1)
-            let overtone = sin(Double(progress) * .pi * 16.0 + phase * 3.4) * (isHighIntensity ? 0.25 : 0.08)
-            let rawWave = carrier * 0.68 + sub * 0.32 + overtone
-            let normalizedWave = max(-1.0, min(1.0, rawWave * 1.12))
-            let y = midY + CGFloat(normalizedWave * Double(usableAmplitude * effectiveLevel) * edgeWindow)
+            let isHighIntensity = binLevel > 0.60
+            let edgeWindow = 0.25 + 0.75 * pow(sin(Double(progress) * .pi), 0.24)
+            let effectiveLevel = min(1.0, binLevel * 0.75 + peakLevel * 0.17 + averageLevel * 0.08)
+            let carrier = sin(Double(progress) * .pi * 7.5 + phase * 2.1)
+            let sub = sin(Double(progress) * .pi * 3.0 - phase * 1.15)
+            let overtone = sin(Double(progress) * .pi * 15.0 + phase * 3.4) * (isHighIntensity ? 0.22 : 0.08)
+            let rawWave = carrier * 0.66 + sub * 0.30 + overtone
+            let offset = rawWave * Double(effectiveLevel) * edgeWindow
+            rawOffsets.append(offset)
+            maxAbsRaw = max(maxAbsRaw, abs(offset))
+        }
+
+        // Scale the peak crest to reach `targetPeak` (1.0 on punchy sounds) without flat-clipping
+        let punchBoost = peakLevel > 0.72 ? (peakLevel - 0.72) / 0.28 : 0.0
+        let targetPeak = Double(min(1.0, peakLevel * (0.90 + punchBoost * 0.12)))
+        let scale = targetPeak / maxAbsRaw
+        return rawOffsets.map { max(-1.0, min(1.0, $0 * scale)) }
+    }
+
+    public static func waveformPeakVerticalSpan(levels: [CGFloat], phase: Double, size: CGSize) -> CGFloat {
+        let midY = size.height / 2.0
+        let usableAmplitude = max(4, (size.height - verticalInset * 2) / 2.0)
+        let steps = max(96, Int(size.width / 2.5))
+        let clampedLevels = levels.isEmpty ? [CGFloat(0.07)] : levels.map { max(0.07, min(1.0, $0)) }
+        let averageLevel = clampedLevels.reduce(0, +) / CGFloat(clampedLevels.count)
+        let peakLevel = clampedLevels.max() ?? 0.07
+
+        let offsets = computePrimaryWaveOffsets(
+            levels: levels,
+            phase: phase,
+            steps: steps,
+            averageLevel: averageLevel,
+            peakLevel: peakLevel
+        )
+
+        var minY = midY
+        var maxY = midY
+        for offset in offsets {
+            let y = midY + CGFloat(offset * Double(usableAmplitude))
             minY = min(minY, y)
             maxY = max(maxY, y)
         }
@@ -136,31 +170,71 @@ public struct VisualizerView: View {
     private func drawSpectrum(context: inout GraphicsContext, size: CGSize) {
         let count = max(1, levels.count)
         let horizontalPadding: CGFloat = 10
-        let verticalPadding: CGFloat = 8
+        let verticalPadding = Self.verticalInset
         let usableWidth = max(10, size.width - horizontalPadding * 2)
         let usableHeight = max(8, size.height - verticalPadding * 2)
-        let spacing: CGFloat = 2.75
+        // Slimmer spacing and bar width to accommodate 33.3% more bars (56 vs 42)
+        let spacing: CGFloat = 2.0
         let totalSpacing = spacing * CGFloat(count - 1)
-        let barWidth = max(2.0, (usableWidth - totalSpacing) / CGFloat(count))
+        let barWidth = max(1.5, (usableWidth - totalSpacing) / CGFloat(count))
         let secondaryBarColor = contrastColor
+        let tertiaryBarColor = ChilltraxTheme.visualizerGray
+
+        let clampedLevels = levels.isEmpty ? [CGFloat(0.07)] : levels.map { max(0.07, min(1.0, $0)) }
+        let averageLevel = clampedLevels.reduce(0, +) / CGFloat(clampedLevels.count)
+        let fadeOpacity = isPlaying
+            ? min(0.22, 0.10 + Double(averageLevel) * 0.14)
+            : 0.06
 
         for (index, rawLevel) in levels.enumerated() {
-            let clamped = max(0.08, min(1.0, rawLevel))
-            let barHeight = max(4, usableHeight * clamped)
+            let clamped = max(0.07, min(1.0, rawLevel))
+            let shaped = CGFloat(pow(Double(clamped), 1.15))
+            let barHeight = max(4, usableHeight * shaped)
             let x = horizontalPadding + CGFloat(index) * (barWidth + spacing)
             let y = size.height - verticalPadding - barHeight
+
+            // Consistent 3-color cycle across spectrum bars: Red, Black/Contrast, #808080 Gray
+            let baseColor: Color
+            switch index % 3 {
+            case 0:
+                baseColor = ChilltraxTheme.accentRed
+            case 1:
+                baseColor = secondaryBarColor
+            default:
+                baseColor = tertiaryBarColor
+            }
+
+            // Subtle fade behind bar movement (trailing peak/lagged envelope in the bar's own color)
+            let explicitTrailRaw = (trailLevels != nil && index < (trailLevels?.count ?? 0))
+                ? max(clamped, min(1.0, trailLevels![index]))
+                : clamped
+            let phaseLagBoost = isPlaying
+                ? CGFloat(max(0.0, sin(phase * 2.1 - Double(index) * 0.42)) * 0.14 + 0.08) * clamped
+                : CGFloat(0.04) * clamped
+            let trailRaw = min(1.0, max(explicitTrailRaw, clamped + phaseLagBoost))
+            let trailShaped = CGFloat(pow(Double(trailRaw), 1.05))
+            let trailHeight = max(barHeight + (isPlaying ? 3.0 : 1.0), usableHeight * trailShaped)
+            let clampedTrailHeight = min(usableHeight, trailHeight)
+            let trailY = size.height - verticalPadding - clampedTrailHeight
+            let trailRect = CGRect(x: x, y: trailY, width: barWidth, height: clampedTrailHeight)
+            let trailPath = Path(roundedRect: trailRect, cornerRadius: barWidth / 2)
+            context.fill(trailPath, with: .color(baseColor.opacity(fadeOpacity)))
 
             let rect = CGRect(x: x, y: y, width: barWidth, height: barHeight)
             let path = Path(roundedRect: rect, cornerRadius: barWidth / 2)
 
-            let isAccentBar = (index % 2 == 0) || (clamped > 0.65)
             let barColor: Color
             if isPlaying {
-                barColor = isAccentBar ? ChilltraxTheme.accentRed : secondaryBarColor
+                barColor = baseColor
             } else {
-                barColor = (index % 2 == 0)
-                    ? ChilltraxTheme.accentRed.opacity(0.55)
-                    : secondaryBarColor.opacity(0.35)
+                switch index % 3 {
+                case 0:
+                    barColor = ChilltraxTheme.accentRed.opacity(0.55)
+                case 1:
+                    barColor = secondaryBarColor.opacity(0.35)
+                default:
+                    barColor = tertiaryBarColor.opacity(0.45)
+                }
             }
 
             context.fill(path, with: .color(barColor))
@@ -169,45 +243,128 @@ public struct VisualizerView: View {
 
     private func drawWaveform(context: inout GraphicsContext, size: CGSize) {
         let midY = size.height / 2.0
-        let verticalPadding: CGFloat = 8
+        let verticalPadding = Self.verticalInset
         let usableAmplitude = max(4, (size.height - verticalPadding * 2) / 2.0)
         let steps = max(96, Int(size.width / 2.5))
         let secondaryWaveColor = contrastColor
+        let tertiaryWaveColor = ChilltraxTheme.visualizerGray
 
-        let clampedLevels = levels.isEmpty ? [CGFloat(0.08)] : levels.map { max(0.08, min(1.0, $0)) }
+        let clampedLevels = levels.isEmpty ? [CGFloat(0.07)] : levels.map { max(0.07, min(1.0, $0)) }
         let averageLevel = clampedLevels.reduce(0, +) / CGFloat(clampedLevels.count)
-        let peakLevel = clampedLevels.max() ?? 0.08
+        let peakLevel = clampedLevels.max() ?? 0.07
 
-        // Secondary harmonic wave (black in light mode, white in dark mode), synced to bin & overall intensity
-        var contrastWavePath = Path()
+        let baseFadeOpacity = isPlaying
+            ? min(0.18, 0.06 + Double(averageLevel) * 0.10 + Double(max(0, peakLevel - 0.70)) * 0.06)
+            : 0.04
+        let punchBoost = peakLevel > 0.72 ? (peakLevel - 0.72) / 0.28 : 0.0
+
+        // 1. Tertiary harmonic wave in exact #808080 color + subtle movement fade
+        var tertiaryRawOffsets = [Double]()
+        tertiaryRawOffsets.reserveCapacity(steps + 1)
+        var tertiaryMaxAbs: Double = 0.001
+        for step in 0...steps {
+            let progress = CGFloat(step) / CGFloat(steps)
+            let mirroredLevel = Self.interpolatedLevel(in: levels, at: 1.0 - progress)
+            let binLevel = Self.interpolatedLevel(in: levels, at: progress)
+            let edgeWindow = 0.25 + 0.75 * pow(sin(Double(progress) * .pi), 0.24)
+            let wave = sin(Double(progress) * .pi * 4.5 + phase * 1.15) * 0.68
+                - sin(Double(progress) * .pi * 9.5 - phase * 1.85) * 0.32
+            let blendedLevel = (binLevel * 0.50 + mirroredLevel * 0.28 + peakLevel * 0.14 + averageLevel * 0.08)
+            let offset = wave * Double(blendedLevel) * edgeWindow
+            tertiaryRawOffsets.append(offset)
+            tertiaryMaxAbs = max(tertiaryMaxAbs, abs(offset))
+        }
+        let tertiaryTargetPeak = Double(min(0.96, peakLevel * (0.78 + punchBoost * 0.18)))
+        let tertiaryScale = tertiaryTargetPeak / tertiaryMaxAbs
+
+        var tertiaryWavePath = Path()
+        var tertiaryFillPath = Path()
+        tertiaryFillPath.move(to: CGPoint(x: 0, y: midY))
         for step in 0...steps {
             let progress = CGFloat(step) / CGFloat(steps)
             let x = progress * size.width
+            let normalized = max(-1.0, min(1.0, tertiaryRawOffsets[step] * tertiaryScale))
+            let y = midY + CGFloat(normalized * Double(usableAmplitude))
+            if step == 0 {
+                tertiaryWavePath.move(to: CGPoint(x: x, y: y))
+            } else {
+                tertiaryWavePath.addLine(to: CGPoint(x: x, y: y))
+            }
+            tertiaryFillPath.addLine(to: CGPoint(x: x, y: y))
+        }
+        tertiaryFillPath.addLine(to: CGPoint(x: size.width, y: midY))
+        tertiaryFillPath.closeSubpath()
+
+        context.fill(
+            tertiaryFillPath,
+            with: .color(tertiaryWaveColor.opacity(baseFadeOpacity * 0.85))
+        )
+        let tertiaryLineWidth = isPlaying ? (1.4 + averageLevel * 0.35) : 1.35
+        context.stroke(
+            tertiaryWavePath,
+            with: .color(isPlaying ? tertiaryWaveColor : tertiaryWaveColor.opacity(0.60)),
+            style: StrokeStyle(lineWidth: tertiaryLineWidth, lineCap: .round, lineJoin: .round)
+        )
+
+        // 2. Secondary harmonic wave (black in light mode, white in dark mode) + subtle movement fade
+        var contrastRawOffsets = [Double]()
+        contrastRawOffsets.reserveCapacity(steps + 1)
+        var contrastMaxAbs: Double = 0.001
+        for step in 0...steps {
+            let progress = CGFloat(step) / CGFloat(steps)
             let binLevel = Self.interpolatedLevel(in: levels, at: progress)
-            let isHighIntensity = binLevel > 0.65
-            let edgeWindow = pow(sin(Double(progress) * .pi), 0.55)
-            let harmonicBoost = isHighIntensity ? (Double(binLevel - 0.65) * 0.85) : 0.0
-            let wave = sin(Double(progress) * .pi * 6.0 - phase * 1.4) * 0.72
-                + cos(Double(progress) * .pi * 13.0 + phase * 2.2) * (0.28 + harmonicBoost * 0.35)
-            let normalizedWave = max(-1.0, min(1.0, wave))
-            let amplitude = Double(usableAmplitude) * Double(binLevel) * 0.88 * edgeWindow
-            let y = midY + CGFloat(normalizedWave * amplitude)
+            let isHighIntensity = binLevel > 0.60
+            let edgeWindow = 0.25 + 0.75 * pow(sin(Double(progress) * .pi), 0.24)
+            let harmonicBoost = isHighIntensity ? (Double(binLevel - 0.60) * 0.65) : 0.0
+            let wave = sin(Double(progress) * .pi * 6.0 - phase * 1.45) * 0.72
+                + cos(Double(progress) * .pi * 12.0 + phase * 2.15) * (0.28 + harmonicBoost * 0.25)
+            let effectiveLevel = min(1.0, binLevel * 0.76 + peakLevel * 0.16 + averageLevel * 0.08)
+            let offset = wave * Double(effectiveLevel) * edgeWindow
+            contrastRawOffsets.append(offset)
+            contrastMaxAbs = max(contrastMaxAbs, abs(offset))
+        }
+        let contrastTargetPeak = Double(min(1.0, peakLevel * (0.86 + punchBoost * 0.14)))
+        let contrastScale = contrastTargetPeak / contrastMaxAbs
+
+        var contrastWavePath = Path()
+        var contrastFillPath = Path()
+        contrastFillPath.move(to: CGPoint(x: 0, y: midY))
+        for step in 0...steps {
+            let progress = CGFloat(step) / CGFloat(steps)
+            let x = progress * size.width
+            let normalized = max(-1.0, min(1.0, contrastRawOffsets[step] * contrastScale))
+            let y = midY + CGFloat(normalized * Double(usableAmplitude))
             if step == 0 {
                 contrastWavePath.move(to: CGPoint(x: x, y: y))
             } else {
                 contrastWavePath.addLine(to: CGPoint(x: x, y: y))
             }
+            contrastFillPath.addLine(to: CGPoint(x: x, y: y))
         }
+        contrastFillPath.addLine(to: CGPoint(x: size.width, y: midY))
+        contrastFillPath.closeSubpath()
 
-        let contrastOpacity = isPlaying ? min(0.95, 0.55 + Double(averageLevel) * 0.45) : 0.40
-        let contrastLineWidth = isPlaying ? (1.6 + averageLevel * 1.0) : 1.6
+        context.fill(
+            contrastFillPath,
+            with: .color(secondaryWaveColor.opacity(baseFadeOpacity * 0.85))
+        )
+        let contrastOpacity = isPlaying ? min(0.90, 0.55 + Double(averageLevel) * 0.35) : 0.40
+        let contrastLineWidth = isPlaying ? (1.55 + averageLevel * 0.45) : 1.5
         context.stroke(
             contrastWavePath,
             with: .color(secondaryWaveColor.opacity(contrastOpacity)),
             style: StrokeStyle(lineWidth: contrastLineWidth, lineCap: .round, lineJoin: .round)
         )
 
-        // Primary red foreground wave + intensity-reactive red tint fill
+        // 3. Primary red foreground wave + subtle red tint fade
+        let primaryOffsets = Self.computePrimaryWaveOffsets(
+            levels: levels,
+            phase: phase,
+            steps: steps,
+            averageLevel: averageLevel,
+            peakLevel: peakLevel
+        )
+
         var redWavePath = Path()
         var fillPath = Path()
         fillPath.move(to: CGPoint(x: 0, y: midY))
@@ -215,16 +372,7 @@ public struct VisualizerView: View {
         for step in 0...steps {
             let progress = CGFloat(step) / CGFloat(steps)
             let x = progress * size.width
-            let binLevel = Self.interpolatedLevel(in: levels, at: progress)
-            let isHighIntensity = binLevel > 0.65
-            let edgeWindow = pow(sin(Double(progress) * .pi), 0.55)
-            let effectiveLevel = min(1.0, binLevel * 0.85 + averageLevel * 0.15)
-            let carrier = sin(Double(progress) * .pi * 8.0 + phase * 2.1)
-            let sub = sin(Double(progress) * .pi * 3.0 - phase * 1.1)
-            let overtone = sin(Double(progress) * .pi * 16.0 + phase * 3.4) * (isHighIntensity ? 0.25 : 0.08)
-            let rawWave = carrier * 0.68 + sub * 0.32 + overtone
-            let normalizedWave = max(-1.0, min(1.0, rawWave * 1.12))
-            let y = midY + CGFloat(normalizedWave * Double(usableAmplitude * effectiveLevel) * edgeWindow)
+            let y = midY + CGFloat(primaryOffsets[step] * Double(usableAmplitude))
 
             if step == 0 {
                 redWavePath.move(to: CGPoint(x: x, y: y))
@@ -237,14 +385,11 @@ public struct VisualizerView: View {
         fillPath.addLine(to: CGPoint(x: size.width, y: midY))
         fillPath.closeSubpath()
 
-        let fillOpacity = isPlaying
-            ? min(0.32, 0.07 + Double(averageLevel) * 0.20 + Double(max(0, peakLevel - 0.65)) * 0.18)
-            : 0.05
-        let redLineWidth = isPlaying ? (1.9 + averageLevel * 1.4) : 1.8
+        let redLineWidth = isPlaying ? (1.8 + averageLevel * 0.55) : 1.75
 
         context.fill(
             fillPath,
-            with: .color(ChilltraxTheme.accentRed.opacity(fillOpacity))
+            with: .color(ChilltraxTheme.accentRed.opacity(baseFadeOpacity))
         )
 
         context.stroke(

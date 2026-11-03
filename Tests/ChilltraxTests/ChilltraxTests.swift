@@ -431,7 +431,7 @@ final class ChilltraxTests: XCTestCase {
     @MainActor
     func testBarsAndWaveformVisualizersSyncToMusicIntensity() {
         let count = RadioPlayer.visualizerBarCount
-        XCTAssertEqual(count, 42)
+        XCTAssertEqual(count, 56)
 
         // 1. Verify RadioPlayer audio intensity spectrum analysis from PCM samples
         let quietSamples = (0..<2048).map { i in Float(sin(Double(i) * 0.15) * 0.02) }
@@ -464,6 +464,36 @@ final class ChilltraxTests: XCTestCase {
 
         XCTAssertLessThan(waveQuietSpan, waveMediumSpan)
         XCTAssertLessThan(waveMediumSpan, waveLoudSpan)
+
+        // Loud/punchy audio reaches maximum vertical amplitude while regular playback stays balanced in the lower/mid area
+        let maxUsableHeight = canvasSize.height - VisualizerView.verticalInset * 2
+        XCTAssertEqual(loudLevels.max() ?? 0, 1.0, accuracy: 0.001)
+        XCTAssertGreaterThanOrEqual(waveLoudSpan, maxUsableHeight * 0.95)
+
+        let player = RadioPlayer()
+        player.setSimulatedPlaybackStateForTesting(isPlaying: true, status: .playing)
+        var peakObservedLevel: CGFloat = 0
+        var peakObservedWaveSpan: CGFloat = 0
+        var totalAverageLevel: CGFloat = 0
+        for _ in 0..<60 {
+            player.tickVisualizer()
+            peakObservedLevel = max(peakObservedLevel, player.visualizerLevels.max() ?? 0)
+            let span = VisualizerView.waveformPeakVerticalSpan(
+                levels: player.visualizerLevels,
+                phase: player.waveformPhase,
+                size: canvasSize
+            )
+            peakObservedWaveSpan = max(peakObservedWaveSpan, span)
+            totalAverageLevel += player.visualizerLevels.reduce(0, +) / CGFloat(count)
+        }
+        let meanLevelOverTime = totalAverageLevel / 60.0
+        XCTAssertGreaterThanOrEqual(peakObservedLevel, 0.96)
+        XCTAssertGreaterThanOrEqual(peakObservedWaveSpan, maxUsableHeight * 0.90)
+        XCTAssertLessThan(meanLevelOverTime, 0.48)
+        XCTAssertEqual(player.visualizerTrailLevels.count, count)
+        for i in 0..<count {
+            XCTAssertGreaterThanOrEqual(player.visualizerTrailLevels[i], player.visualizerLevels[i])
+        }
 
         // 3. Verify rendered output of both .spectrum and .waveform visualizers increases active pixel energy with intensity
         func countActivePixels(mode: VisualizerMode, levels: [CGFloat]) -> Int {

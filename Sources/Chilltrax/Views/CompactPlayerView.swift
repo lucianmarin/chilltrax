@@ -71,6 +71,7 @@ public struct CompactPlayerView: View {
                 VisualizerView(
                     mode: appState.visualizerMode,
                     levels: appState.radioPlayer.visualizerLevels,
+                    trailLevels: appState.radioPlayer.visualizerTrailLevels,
                     phase: appState.radioPlayer.waveformPhase,
                     isPlaying: appState.radioPlayer.isPlaying,
                     onToggleMode: { appState.toggleVisualizerMode() }
