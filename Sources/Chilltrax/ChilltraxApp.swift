@@ -29,6 +29,7 @@ struct ChilltraxApp: App {
             CompactPlayerView(appState: appState)
         }
         .defaultSize(width: ChilltraxTheme.compactWidth, height: ChilltraxTheme.compactHeight)
+        .windowResizability(.contentSize)
         .commands {
             CommandMenu("Playback") {
                 Button(appState.radioPlayer.isPlaying ? "Pause" : "Play") {
@@ -67,5 +68,6 @@ struct ChilltraxApp: App {
         Settings {
             SettingsView(appState: appState)
         }
+        .windowResizability(.contentSize)
     }
 }

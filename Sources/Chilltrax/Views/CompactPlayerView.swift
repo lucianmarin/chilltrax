@@ -103,11 +103,8 @@ public struct CompactPlayerView: View {
             Spacer(minLength: 0)
         }
         .frame(
-            minWidth: ChilltraxTheme.compactWidth,
-            idealWidth: ChilltraxTheme.compactWidth,
-            maxWidth: ChilltraxTheme.compactWidth,
-            minHeight: 0,
-            maxHeight: .infinity,
+            width: ChilltraxTheme.compactWidth,
+            height: currentContentHeight,
             alignment: .top
         )
         .clipped()
@@ -165,6 +162,13 @@ public struct CompactPlayerView: View {
 
     private var isSongPlaying: Bool {
         appState.radioPlayer.isPlaying && appState.currentSong.isMeaningfulTrack
+    }
+
+    private var currentContentHeight: CGFloat {
+        ChilltraxTheme.contentHeight(
+            isExpanded: appState.isHistoryExpanded,
+            resultCount: appState.filteredHistoryEntries.count
+        )
     }
 
     private var displayedSongTitle: String {

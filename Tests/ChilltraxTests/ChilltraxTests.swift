@@ -411,6 +411,8 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertFalse(window.styleMask.contains(.resizable))
         XCTAssertEqual(window.minSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
         XCTAssertEqual(window.maxSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
+        XCTAssertEqual(window.minSize.height, window.frame.height, accuracy: 0.5)
+        XCTAssertEqual(window.maxSize.height, window.frame.height, accuracy: 0.5)
 
         // Move window & verify position is persisted when closing and restored on a newly launched window
         window.setFrameTopLeftPoint(NSPoint(x: 345, y: 678))
@@ -450,14 +452,25 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertFalse(window.styleMask.contains(.resizable))
         XCTAssertEqual(window.minSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
         XCTAssertEqual(window.maxSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
+        XCTAssertEqual(window.minSize.height, window.frame.height, accuracy: 0.5)
+        XCTAssertEqual(window.maxSize.height, window.frame.height, accuracy: 0.5)
 
         // Expand history with > 6 results (capped at 6 visible rows)
-        coordinator.syncSize(isExpanded: true, resultCount: 10, on: window)
+        for index in 3...10 {
+            state.handleIncomingSongMetadata(
+                SongMetadata(artist: "Artist \(index)", title: "Track \(index)", albumOrMix: "Album \(index)"),
+                sourceIsICY: false
+            )
+        }
+        hostingController.view.layoutSubtreeIfNeeded()
+        coordinator.syncSize(isExpanded: true, resultCount: state.filteredHistoryEntries.count, on: window)
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
 
         XCTAssertEqual(window.frame.maxY, initialTopY, accuracy: 1.0)
         XCTAssertEqual(window.contentLayoutRect.height, ChilltraxTheme.expandedHeight, accuracy: 1.0)
         XCTAssertFalse(window.styleMask.contains(.resizable))
+        XCTAssertEqual(window.minSize.height, window.frame.height, accuracy: 0.5)
+        XCTAssertEqual(window.maxSize.height, window.frame.height, accuracy: 0.5)
 
         // Collapse history
         state.isHistoryExpanded = false
@@ -470,6 +483,18 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertFalse(window.styleMask.contains(.resizable))
         XCTAssertEqual(window.minSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
         XCTAssertEqual(window.maxSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
+        XCTAssertEqual(window.minSize.height, window.frame.height, accuracy: 0.5)
+        XCTAssertEqual(window.maxSize.height, window.frame.height, accuracy: 0.5)
+
+        // Verify visualizer updates do not re-enable window resizability or alter min/max sizes
+        state.radioPlayer.tickVisualizer()
+        hostingController.view.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        XCTAssertEqual(window.contentLayoutRect.height, ChilltraxTheme.compactHeight, accuracy: 1.0)
+        XCTAssertFalse(window.styleMask.contains(.resizable))
+        XCTAssertEqual(window.minSize.height, window.frame.height, accuracy: 0.5)
+        XCTAssertEqual(window.maxSize.height, window.frame.height, accuracy: 0.5)
     }
 
     @MainActor

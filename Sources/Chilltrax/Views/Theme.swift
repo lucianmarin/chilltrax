@@ -187,7 +187,7 @@ public struct WindowAccessor: NSViewRepresentable {
                 window.titleVisibility = .hidden
                 window.titlebarAppearsTransparent = false
                 window.toolbarStyle = .unified
-                window.styleMask.insert(.fullSizeContentView)
+                window.styleMask.remove(.fullSizeContentView)
                 window.styleMask.remove(.resizable)
                 window.standardWindowButton(.zoomButton)?.isEnabled = false
                 window.isMovableByWindowBackground = true
@@ -256,6 +256,7 @@ public struct WindowAccessor: NSViewRepresentable {
             )
             let targetWindowHeight = targetContentHeight + toolbarInset
             let fixedWidth = ChilltraxTheme.compactWidth
+            let fixedSize = NSSize(width: fixedWidth, height: targetWindowHeight)
 
             let expandedChanged = (lastAppliedExpanded != isExpanded)
             let heightChanged = (lastAppliedTargetContentHeight != targetContentHeight)
@@ -266,39 +267,27 @@ public struct WindowAccessor: NSViewRepresentable {
                 lastAppliedExpanded = isExpanded
                 lastAppliedTargetContentHeight = targetContentHeight
 
-                // Relax vertical min/max constraints first so setFrame never fights active window limits
-                window.minSize = NSSize(
-                    width: fixedWidth,
-                    height: ChilltraxTheme.compactHeight + toolbarInset
-                )
-                window.maxSize = NSSize(
-                    width: fixedWidth,
-                    height: ChilltraxTheme.expandedHeight + toolbarInset
-                )
+                window.minSize = fixedSize
+                window.maxSize = fixedSize
 
                 var targetFrame = window.frame
-                targetFrame.size.width = fixedWidth
-                targetFrame.size.height = targetWindowHeight
+                targetFrame.size = fixedSize
                 // Keep top edge of the window anchored in place on screen when expanding/collapsing
                 targetFrame.origin.y = window.frame.maxY - targetWindowHeight
 
                 window.setFrame(targetFrame, display: true, animate: false)
+                window.contentView?.layoutSubtreeIfNeeded()
             }
 
-            // Disable window resizing both vertically and horizontally in all modes
             if window.styleMask.contains(.resizable) {
                 window.styleMask.remove(.resizable)
             }
-            window.standardWindowButton(.zoomButton)?.isEnabled = false
-
-            window.minSize = NSSize(
-                width: fixedWidth,
-                height: targetWindowHeight
-            )
-            window.maxSize = NSSize(
-                width: fixedWidth,
-                height: targetWindowHeight
-            )
+            if window.minSize != fixedSize {
+                window.minSize = fixedSize
+            }
+            if window.maxSize != fixedSize {
+                window.maxSize = fixedSize
+            }
         }
     }
 }
