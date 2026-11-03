@@ -498,10 +498,11 @@ public final class SongNotificationManager {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
-    public func sendSongChangeNotification(song: SongMetadata, stationName: String) {
-        guard canUseUserNotifications, song.isMeaningfulTrack else { return }
-        requestAuthorizationIfNeeded()
+    public static func makeNotificationContent(song: SongMetadata, station: RadioStation) -> UNMutableNotificationContent {
+        makeNotificationContent(song: song, stationName: station.title)
+    }
 
+    public static func makeNotificationContent(song: SongMetadata, stationName: String) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         content.title = song.title.isEmpty ? stationName : song.title
         if !song.artist.isEmpty && !song.albumOrMix.isEmpty {
@@ -512,6 +513,14 @@ public final class SongNotificationManager {
             content.subtitle = stationName
         }
         content.body = "Now playing on \(stationName)"
+        return content
+    }
+
+    public func sendSongChangeNotification(song: SongMetadata, stationName: String) {
+        guard canUseUserNotifications, song.isMeaningfulTrack else { return }
+        requestAuthorizationIfNeeded()
+
+        let content = Self.makeNotificationContent(song: song, stationName: stationName)
 
         let request = UNNotificationRequest(
             identifier: "chilltrax.song.\(UUID().uuidString)",

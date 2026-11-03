@@ -278,32 +278,76 @@ final class ChilltraxTests: XCTestCase {
 
         XCTAssertEqual(state.historyEntries.count, 2)
         XCTAssertEqual(state.historyEntries[0].stationBadgeLabel, "DANZ")
+        XCTAssertEqual(state.historyEntries[0].clipboardText, "Massive Attack - Teardrop")
         XCTAssertEqual(state.historyEntries[1].stationBadgeLabel, "TRAX")
+        XCTAssertEqual(state.historyEntries[1].clipboardText, "Air - La Femme d'Argent")
+        XCTAssertEqual(state.historyBadgeLabel(for: state.historyEntries[0]), "DANZ")
+        XCTAssertEqual(state.historyBadgeLabel(for: state.historyEntries[1]), "TRAX")
+
+        // Copying first history item changes its label to COPY while others remain TRAX/DANZ
+        XCTAssertEqual(state.copyHistoryEntryToClipboard(state.historyEntries[0]), "Massive Attack - Teardrop")
+        XCTAssertEqual(state.historyBadgeLabel(for: state.historyEntries[0]), "COPY")
+        XCTAssertEqual(state.historyBadgeLabel(for: state.historyEntries[1]), "TRAX")
+
+        // Copying second history item switches COPY to it and reverts the previous item back to DANZ
+        XCTAssertEqual(state.copyHistoryEntryToClipboard(state.historyEntries[1]), "Air - La Femme d'Argent")
+        XCTAssertEqual(state.historyBadgeLabel(for: state.historyEntries[0]), "DANZ")
+        XCTAssertEqual(state.historyBadgeLabel(for: state.historyEntries[1]), "COPY")
         XCTAssertTrue(state.historyEntries[0].matches(searchQuery: "DANZ"))
         XCTAssertTrue(state.historyEntries[1].matches(searchQuery: "TRAX"))
         XCTAssertFalse(state.isHistoryExpanded)
+        XCTAssertFalse(state.isHistoryButtonHighlighted)
 
-        // Searching with matching results automatically expands the player with history results
+        // Searching with matching results automatically expands the player with history results and highlights the toolbar button
         state.historySearchQuery = "moon"
         XCTAssertEqual(state.filteredHistoryEntries.count, 1)
         XCTAssertEqual(state.filteredHistoryEntries.first?.artist, "Air")
         XCTAssertTrue(state.isHistoryExpanded)
+        XCTAssertTrue(state.isHistoryButtonHighlighted)
 
-        // Searching with no matching results collapses the player back to compact
+        // Even if history is manually collapsed while a matching search result exists, the button remains highlighted
+        state.toggleHistoryExpanded()
+        XCTAssertFalse(state.isHistoryExpanded)
+        XCTAssertTrue(state.isHistoryButtonHighlighted)
+
+        // Searching with no matching results collapses the player back to compact and removes highlight
         state.historySearchQuery = "nonexistent-artist-xyz"
         XCTAssertTrue(state.filteredHistoryEntries.isEmpty)
         XCTAssertFalse(state.isHistoryExpanded)
+        XCTAssertFalse(state.isHistoryButtonHighlighted)
 
         // Matching query expands again, and clearing search query collapses back to compact
         state.historySearchQuery = "teardrop"
         XCTAssertEqual(state.filteredHistoryEntries.count, 1)
         XCTAssertTrue(state.isHistoryExpanded)
+        XCTAssertTrue(state.isHistoryButtonHighlighted)
         state.historySearchQuery = ""
         XCTAssertFalse(state.isHistoryExpanded)
+        XCTAssertFalse(state.isHistoryButtonHighlighted)
+
+        // Opening history directly also highlights the toolbar button
+        state.toggleHistoryExpanded()
+        XCTAssertTrue(state.isHistoryExpanded)
+        XCTAssertTrue(state.isHistoryButtonHighlighted)
+        state.toggleHistoryExpanded()
+        XCTAssertFalse(state.isHistoryExpanded)
+        XCTAssertFalse(state.isHistoryButtonHighlighted)
 
         // Disabling album cover setting clears current song cover URL
         state.fetchAlbumCoverFromChilltrax = false
         XCTAssertNil(state.currentSong.coverURL)
+
+        let chilltraxNotification = SongNotificationManager.makeNotificationContent(
+            song: SongMetadata(artist: "Air", title: "La Femme d'Argent", albumOrMix: "Moon Safari"),
+            station: .chilltrax
+        )
+        XCTAssertEqual(chilltraxNotification.body, "Now playing on Chilltrax")
+
+        let radioDanzNotification = SongNotificationManager.makeNotificationContent(
+            song: SongMetadata(artist: "Massive Attack", title: "Teardrop", albumOrMix: "Mezzanine"),
+            station: .radioDanz
+        )
+        XCTAssertEqual(radioDanzNotification.body, "Now playing on Radio Danz")
     }
 
     func testAppIconVectorRenderingFromSVG() {

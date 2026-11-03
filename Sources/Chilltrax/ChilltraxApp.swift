@@ -38,6 +38,11 @@ struct ChilltraxApp: App {
 
                 Divider()
 
+                Button("Toggle Station (Chilltrax / Radio Danz)") {
+                    appState.toggleStation()
+                }
+                .keyboardShortcut("s", modifiers: [.command, .shift])
+
                 Button("Toggle Visualizer (Waveform / Spectrum)") {
                     appState.toggleVisualizerMode()
                 }

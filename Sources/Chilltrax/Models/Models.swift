@@ -451,6 +451,12 @@ public struct SongHistoryEntry: Identifiable, Codable, Equatable, Sendable {
         return "\(artist) — \(title)"
     }
 
+    public var clipboardText: String {
+        if artist.isEmpty { return title }
+        if title.isEmpty { return artist }
+        return "\(artist) - \(title)"
+    }
+
     public var normalizedKey: String {
         "\(artist.lowercased().trimmingCharacters(in: .whitespacesAndNewlines))|\(title.lowercased().trimmingCharacters(in: .whitespacesAndNewlines))"
     }

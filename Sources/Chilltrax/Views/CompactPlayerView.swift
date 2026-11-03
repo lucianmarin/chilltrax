@@ -18,17 +18,21 @@ public struct CompactPlayerView: View {
                     albumArtworkView
 
                     // Song Metadata + Controls
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 3) {
                         Text(displayedSongTitle)
                             .font(.system(size: 16, weight: .bold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
                             .help("\(displayedSongArtist) — \(displayedSongTitle)")
 
+                        songInfoSeparator
+
                         Text(displayedSongArtist)
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(ChilltraxTheme.accentRed)
                             .lineLimit(1)
+
+                        songInfoSeparator
 
                         Text(displayedSongAlbum)
                             .font(.system(size: 12))
@@ -43,8 +47,7 @@ public struct CompactPlayerView: View {
                                 .lineLimit(1)
                         }
                     }
-
-                    Spacer(minLength: 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                     // Play / Pause Primary Button (#E60E30 background color, no glow)
                     Button(action: {
@@ -142,17 +145,19 @@ public struct CompactPlayerView: View {
                 .pickerStyle(.segmented)
                 .help("Visualizer Mode (Waveform or Spectrum)")
 
-                Button(action: {
-                    appState.toggleHistoryExpanded()
-                }) {
+                Toggle(isOn: Binding(
+                    get: { appState.isHistoryButtonHighlighted },
+                    set: { _ in appState.toggleHistoryExpanded() }
+                )) {
                     HStack(spacing: 4) {
                         Image(systemName: "clock.arrow.circlepath")
-                            .symbolVariant(appState.isHistoryExpanded ? .fill : .none)
                         Text("\(appState.historyEntries.count)")
                             .font(.system(size: 11, weight: .semibold, design: .rounded))
                             .monospacedDigit()
                     }
                 }
+                .toggleStyle(.button)
+                .tint(nil)
                 .help(appState.isHistoryExpanded ? "Collapse Song History" : "Expand Searchable Song History")
             }
         }
@@ -181,6 +186,12 @@ public struct CompactPlayerView: View {
             return "Album"
         }
         return appState.currentSong.albumOrMix
+    }
+
+    private var songInfoSeparator: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.08))
+            .frame(height: 1)
     }
 
     private var appleMusicURL: URL? {

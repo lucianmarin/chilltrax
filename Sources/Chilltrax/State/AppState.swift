@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import AppKit
 import Combine
 
 @MainActor
@@ -113,6 +114,7 @@ public final class AppState: ObservableObject {
     }
     @Published public private(set) var visibleHistoryLimit: Int = AppState.historyPageSize
     @Published public private(set) var historyEntries: [SongHistoryEntry] = []
+    @Published public private(set) var copiedHistoryEntryID: UUID? = nil
     @Published public private(set) var isDiscoveringBroadcasts: Bool = false
     @Published public private(set) var discoveryStatusMessage: String?
 
@@ -145,6 +147,25 @@ public final class AppState: ObservableObject {
 
     public var hasMoreHistoryEntries: Bool {
         filteredHistoryEntries.count > visibleHistoryLimit
+    }
+
+    public var isHistoryButtonHighlighted: Bool {
+        let hasSearchResults = !historySearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !filteredHistoryEntries.isEmpty
+        return isHistoryExpanded || hasSearchResults
+    }
+
+    @discardableResult
+    public func copyHistoryEntryToClipboard(_ entry: SongHistoryEntry) -> String {
+        copiedHistoryEntryID = entry.id
+        let text = entry.clipboardText
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        return text
+    }
+
+    public func historyBadgeLabel(for entry: SongHistoryEntry) -> String {
+        copiedHistoryEntryID == entry.id ? "COPY" : entry.stationBadgeLabel
     }
 
     public func loadMoreHistoryIfNeeded(currentEntry: SongHistoryEntry? = nil) {
@@ -697,7 +718,7 @@ public final class AppState: ObservableObject {
         if shouldNotify {
             SongNotificationManager.shared.sendSongChangeNotification(
                 song: merged,
-                stationName: selectedStream.name
+                stationName: selectedStation.title
             )
         }
 
@@ -715,6 +736,7 @@ public final class AppState: ObservableObject {
         pendingHistoryTask?.cancel()
         pendingHistoryTask = nil
         historyEntries = []
+        copiedHistoryEntryID = nil
         historyStore.save([])
         coverCache.clearAll()
     }

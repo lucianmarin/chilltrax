@@ -36,10 +36,14 @@ public struct HistoryListView: View {
                         ForEach(Array(displayed.enumerated()), id: \.element.id) { index, entry in
                             HistoryRowView(
                                 entry: entry,
+                                badgeLabel: appState.historyBadgeLabel(for: entry),
                                 showCover: appState.fetchAlbumCoverFromChilltrax,
                                 coverCache: appState.coverCache,
                                 formattedDate: Self.timeFormatter.string(from: entry.playedAt),
-                                showBottomDivider: index < displayed.count - 1 || appState.hasMoreHistoryEntries
+                                showBottomDivider: index < displayed.count - 1 || appState.hasMoreHistoryEntries,
+                                onCopySongInfo: {
+                                    appState.copyHistoryEntryToClipboard(entry)
+                                }
                             )
                             .frame(height: ChilltraxTheme.historyRowHeight)
                             .onAppear {
@@ -56,10 +60,12 @@ public struct HistoryListView: View {
 
 private struct HistoryRowView: View {
     let entry: SongHistoryEntry
+    let badgeLabel: String
     let showCover: Bool
     let coverCache: AlbumCoverCache
     let formattedDate: String
     let showBottomDivider: Bool
+    let onCopySongInfo: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
@@ -118,15 +124,21 @@ private struct HistoryRowView: View {
                         }
                     }
 
-                    Text(entry.stationBadgeLabel)
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 4.5)
-                        .padding(.vertical, 1.5)
-                        .background(
-                            RoundedRectangle(cornerRadius: 3.5, style: .continuous)
-                                .fill(Color.primary.opacity(0.07))
-                        )
+                    Button(action: {
+                        onCopySongInfo()
+                    }) {
+                        Text(badgeLabel)
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 4.5)
+                            .padding(.vertical, 1.5)
+                            .background(
+                                RoundedRectangle(cornerRadius: 3.5, style: .continuous)
+                                    .fill(Color.primary.opacity(0.07))
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .help("Copy \"\(entry.clipboardText)\" to Clipboard")
                 }
             }
         }
@@ -141,8 +153,7 @@ private struct HistoryRowView: View {
         .contentShape(Rectangle())
         .contextMenu {
             Button("Copy Song Name") {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(entry.displayName, forType: .string)
+                onCopySongInfo()
             }
             if let buyURL = entry.buyURL {
                 Link("Open in Apple Music", destination: buyURL)

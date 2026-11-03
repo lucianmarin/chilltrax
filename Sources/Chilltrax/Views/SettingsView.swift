@@ -67,7 +67,7 @@ public struct SettingsView: View {
                         .foregroundStyle(.secondary)
                     Text(appState.currentStationAPIEndpoints.songInfoURLString)
                         .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .textSelection(.enabled)
@@ -126,7 +126,7 @@ public struct SettingsView: View {
 
             Section("Metadata, Artwork & Notifications") {
                 Toggle(
-                    "Fetch current playing song album cover from chilltrax.com",
+                    "Fetch current playing song album cover",
                     isOn: $appState.fetchAlbumCoverFromChilltrax
                 )
 
