@@ -23,13 +23,13 @@ Chilltrax is a native macOS one-radio-station player built with SwiftUI and AVFo
    - Main UI is a sleek **compact player** window with a full-width visualizer across the bottom.
    - Clicking the **History SF Symbol** (`clock.arrow.circlepath`) with the live song counter in the toolbar smoothly expands the window to reveal a **searchable history list** of all played songs (filterable by title, artist, album/mix, or station).
 8. **Compressed Local Song History Persistence**:
-   - Every song played is persisted locally across app restarts in an **efficiently compressed text file** (`~/Library/Application Support/Chilltrax/history.tsv.zlib`), using tab-separated UTF-8 text compressed with Apple's native `Compression` (`zlib`) algorithm.
+   - Every song played is persisted locally across app restarts in an **efficiently compressed text file** (`~/Library/Application Support/Chilltrax/history.tsv.lzfse`), using tab-separated UTF-8 text compressed with Apple's native `Compression` (`LZFSE`) algorithm (matching `monochrome`).
 
 ## Implementation Tracker
 
 - [x] Project scaffolding (`Package.swift`, `Makefile`, `icon.svg`, `AppIcon.icns`)
 - [x] Models (`StationStream`, `SongMetadata`, `SongHistoryEntry`, `VisualizerMode`)
-- [x] Compressed text file history persistence (`CompressedHistoryStore` using `zlib`-compressed TSV text)
+- [x] Compressed text file history persistence (`CompressedHistoryStore` using `LZFSE`-compressed TSV text)
 - [x] Chilltrax website stream discovery & live metadata/cover client (`ChilltraxClient`)
 - [x] Audio stream player (`AVPlayer` + ICY `AVPlayerItemMetadataOutput` + `.pls` resolver + visualizer engine + `UNUserNotificationCenter` notifications)
 - [x] Compact player UI with Waveform / Bars visualizer & album cover art (`CompactPlayerView`, `VisualizerView`)

@@ -87,7 +87,7 @@ final class ChilltraxTests: XCTestCase {
             .appendingPathComponent("ChilltraxTests-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
-        let fileURL = tempDir.appendingPathComponent("history.tsv.zlib")
+        let fileURL = tempDir.appendingPathComponent("history.tsv.lzfse")
         let store = CompressedHistoryStore(fileURL: fileURL)
 
         let station = StationStream.defaultStream
@@ -121,10 +121,11 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertEqual(entries.count, 2)
         XCTAssertEqual(entries.first?.artist, "Zero 7")
 
-        // Verify the on-disk file is compressed and smaller than or distinct from plain text header
+        // Verify the on-disk file is LZFSE-compressed and smaller than or distinct from plain text header
         let rawBytes = try Data(contentsOf: fileURL)
         XCTAssertFalse(rawBytes.isEmpty)
-        XCTAssertNil(String(data: rawBytes, encoding: .utf8), "File on disk should be zlib-compressed binary data, not raw uncompressed text")
+        XCTAssertNil(String(data: rawBytes, encoding: .utf8), "File on disk should be LZFSE-compressed binary data, not raw uncompressed text")
+        XCTAssertNotNil(try? (rawBytes as NSData).decompressed(using: .lzfse))
 
         // Simulate app restart by instantiating a new CompressedHistoryStore pointing at the same file
         let reloadedStore = CompressedHistoryStore(fileURL: fileURL)
@@ -151,7 +152,7 @@ final class ChilltraxTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let tempFile = FileManager.default.temporaryDirectory
-            .appendingPathComponent("history-\(UUID().uuidString).tsv.zlib")
+            .appendingPathComponent("history-\(UUID().uuidString).tsv.lzfse")
         defer { try? FileManager.default.removeItem(at: tempFile) }
 
         let store = CompressedHistoryStore(fileURL: tempFile)
@@ -237,7 +238,7 @@ final class ChilltraxTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let tempFile = FileManager.default.temporaryDirectory
-            .appendingPathComponent("window-history-\(UUID().uuidString).tsv.zlib")
+            .appendingPathComponent("window-history-\(UUID().uuidString).tsv.lzfse")
         defer { try? FileManager.default.removeItem(at: tempFile) }
 
         let state = AppState(

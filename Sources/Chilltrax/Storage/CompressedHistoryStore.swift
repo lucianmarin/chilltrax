@@ -2,7 +2,7 @@ import Foundation
 import Compression
 
 /// Persists played song history locally across app restarts in an efficiently compressed text file
-/// (`history.tsv.zlib`) using UTF-8 tab-separated values compressed via Apple's native zlib compression.
+/// (`history.tsv.lzfse`) using UTF-8 tab-separated values compressed via Apple's native LZFSE compression (matching `../monochrome`).
 public final class CompressedHistoryStore {
     public static let fileHeader = "#CHILLTRAX_HISTORY_V1\tid\tplayedAtISO8601\tartist\ttitle\talbumOrMix\tyear\tcoverURL\tbuyURL\tstationName\tstationURL"
 
@@ -17,7 +17,19 @@ public final class CompressedHistoryStore {
                 ?? FileManager.default.temporaryDirectory
             let directory = appSupport.appendingPathComponent("Chilltrax", isDirectory: true)
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            self.fileURL = directory.appendingPathComponent("history.tsv.zlib")
+            let lzfseURL = directory.appendingPathComponent("history.tsv.lzfse")
+            let legacyZlibURL = directory.appendingPathComponent("history.tsv.zlib")
+            self.fileURL = lzfseURL
+
+            // Automatically migrate existing legacy zlib history file to LZFSE if present
+            if !FileManager.default.fileExists(atPath: lzfseURL.path),
+               FileManager.default.fileExists(atPath: legacyZlibURL.path),
+               let legacyRaw = try? Data(contentsOf: legacyZlibURL),
+               let decompressed = try? (legacyRaw as NSData).decompressed(using: .zlib) as Data,
+               let recompressed = try? (decompressed as NSData).compressed(using: .lzfse) as Data {
+                try? recompressed.write(to: lzfseURL, options: .atomic)
+                try? FileManager.default.removeItem(at: legacyZlibURL)
+            }
         }
 
         let formatter = ISO8601DateFormatter()
@@ -25,7 +37,7 @@ public final class CompressedHistoryStore {
         self.isoFormatter = formatter
     }
 
-    /// Loads all saved song history entries from the compressed text file, newest first.
+    /// Loads all saved song history entries from the LZFSE-compressed text file, newest first.
     public func load() -> [SongHistoryEntry] {
         guard FileManager.default.fileExists(atPath: fileURL.path),
               let rawData = try? Data(contentsOf: fileURL),
@@ -34,8 +46,10 @@ public final class CompressedHistoryStore {
         }
 
         let textData: Data
-        if let decompressed = try? (rawData as NSData).decompressed(using: .zlib) as Data {
+        if let decompressed = try? (rawData as NSData).decompressed(using: .lzfse) as Data {
             textData = decompressed
+        } else if let decompressedZlib = try? (rawData as NSData).decompressed(using: .zlib) as Data {
+            textData = decompressedZlib
         } else {
             // Graceful fallback if the file was written as plain UTF-8 text
             textData = rawData
@@ -48,7 +62,7 @@ public final class CompressedHistoryStore {
         return decodeText(text)
     }
 
-    /// Saves the entire list of song history entries to the compressed text file atomically.
+    /// Saves the entire list of song history entries to the LZFSE-compressed text file atomically.
     @discardableResult
     public func save(_ entries: [SongHistoryEntry]) -> Bool {
         let text = encodeText(entries)
@@ -59,7 +73,7 @@ public final class CompressedHistoryStore {
         do {
             let directory = fileURL.deletingLastPathComponent()
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let compressedData = try (textData as NSData).compressed(using: .zlib) as Data
+            let compressedData = try (textData as NSData).compressed(using: .lzfse) as Data
             try compressedData.write(to: fileURL, options: .atomic)
             return true
         } catch {
