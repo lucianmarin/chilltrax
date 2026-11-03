@@ -257,51 +257,43 @@ public struct CompactPlayerView: View {
     }
 
     private var historySearchBox: some View {
-        HStack(spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-
-                TextField("Search played songs by title, artist, album…", text: $appState.historySearchQuery)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12.5))
-
-                if !appState.historySearchQuery.isEmpty {
-                    Button(action: {
-                        appState.historySearchQuery = ""
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 9)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(Color.primary.opacity(0.05))
-            )
-
-            Text("\(appState.filteredHistoryEntries.count) of \(appState.historyEntries.count)")
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 12))
                 .foregroundStyle(.secondary)
-                .monospacedDigit()
-                .help(storageTooltip)
+
+            TextField("Search played songs by title, artist, album…", text: $appState.historySearchQuery)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12.5))
+
+            if !appState.historySearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               !appState.filteredHistoryEntries.isEmpty {
+                Text("\(appState.filteredHistoryEntries.count)")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+
+            if !appState.historySearchQuery.isEmpty {
+                Button(action: {
+                    appState.historySearchQuery = ""
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
         }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color.primary.opacity(0.05))
+        )
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .frame(height: 43)
-    }
-
-    private var storageTooltip: String {
-        let bytes = appState.historyStore.compressedFileSizeBytes
-        let byteFormatter = ByteCountFormatter()
-        byteFormatter.countStyle = .file
-        let sizeString = byteFormatter.string(fromByteCount: bytes)
-        return "Saved in compressed file: \(appState.historyStore.fileURL.lastPathComponent) (\(sizeString))"
     }
 
     private var statusBadge: some View {
