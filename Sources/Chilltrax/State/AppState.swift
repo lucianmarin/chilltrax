@@ -13,6 +13,7 @@ public final class AppState: ObservableObject {
         static let notifyOnSongChange = "chilltrax.notifyOnSongChange"
         static let fetchAlbumCoverFromChilltrax = "chilltrax.fetchAlbumCoverFromChilltrax"
         static let isHistoryExpanded = "chilltrax.isHistoryExpanded"
+        static let historyCommitDelaySeconds = "chilltrax.historyCommitDelaySeconds"
     }
 
     // MARK: - Published UI & Player State
@@ -70,6 +71,18 @@ public final class AppState: ObservableObject {
             defaults.set(isHistoryExpanded, forKey: DefaultsKeys.isHistoryExpanded)
         }
     }
+    @Published public var historyCommitDelaySeconds: Int {
+        didSet {
+            let clamped = min(99, max(0, historyCommitDelaySeconds))
+            if historyCommitDelaySeconds != clamped {
+                historyCommitDelaySeconds = clamped
+                return
+            }
+            defaults.set(clamped, forKey: DefaultsKeys.historyCommitDelaySeconds)
+            minimumHistoryPlayDuration = TimeInterval(clamped)
+            scheduleHistoryRecordingIfNeeded()
+        }
+    }
     @Published public var historySearchQuery: String = "" {
         didSet {
             updateHistoryExpansionForSearch(previousQuery: oldValue)
@@ -82,8 +95,15 @@ public final class AppState: ObservableObject {
     public let radioPlayer: RadioPlayer
     public let client: ChilltraxClient
     public let historyStore: CompressedHistoryStore
+    public private(set) var minimumHistoryPlayDuration: TimeInterval
     private let defaults: UserDefaults
+    private let startPollingAutomatically: Bool
     private var metadataPollingTask: Task<Void, Never>?
+    private var pendingHistoryTask: Task<Void, Never>?
+    private var currentSongPlayStartDate: Date?
+    private var currentSongAccumulatedPlayTime: TimeInterval = 0
+    private var hasRecordedCurrentSongInHistory: Bool = false
+    private var wasActivelyPlayingForHistory: Bool = false
     private var cancellables = Set<AnyCancellable>()
     private var hasReceivedInitialMetadata = false
 
@@ -107,12 +127,29 @@ public final class AppState: ObservableObject {
         historyStore: CompressedHistoryStore = CompressedHistoryStore(),
         radioPlayer: RadioPlayer? = nil,
         defaults: UserDefaults = .standard,
-        startPollingAutomatically: Bool = true
+        startPollingAutomatically: Bool = true,
+        minimumHistoryPlayDuration: TimeInterval? = nil
     ) {
         self.client = client
         self.historyStore = historyStore
         self.radioPlayer = radioPlayer ?? RadioPlayer()
         self.defaults = defaults
+        self.startPollingAutomatically = startPollingAutomatically
+
+        let initialDelaySeconds: Int
+        if defaults.object(forKey: DefaultsKeys.historyCommitDelaySeconds) != nil {
+            initialDelaySeconds = min(99, max(0, defaults.integer(forKey: DefaultsKeys.historyCommitDelaySeconds)))
+        } else if let minimumHistoryPlayDuration {
+            initialDelaySeconds = min(99, max(0, Int(minimumHistoryPlayDuration.rounded())))
+        } else {
+            initialDelaySeconds = 10
+        }
+        self.historyCommitDelaySeconds = initialDelaySeconds
+        if let minimumHistoryPlayDuration {
+            self.minimumHistoryPlayDuration = min(99.0, max(0.0, minimumHistoryPlayDuration))
+        } else {
+            self.minimumHistoryPlayDuration = TimeInterval(initialDelaySeconds)
+        }
 
         // Load persisted settings
         let initialDiscovered: [StationStream]
@@ -185,13 +222,15 @@ public final class AppState: ObservableObject {
             }
             .store(in: &cancellables)
 
-        self.radioPlayer.onICYMetadataReceived = { [weak self] icyMetadata in
-            guard let self else { return }
-            self.handleIncomingSongMetadata(icyMetadata, sourceIsICY: true)
-        }
+        Publishers.CombineLatest(self.radioPlayer.$isPlaying, self.radioPlayer.$status)
+            .sink { [weak self] isPlaying, status in
+                self?.handlePlaybackActivityChange(isPlaying: isPlaying, status: status)
+            }
+            .store(in: &cancellables)
 
-        if startPollingAutomatically {
-            startMetadataPolling()
+        self.radioPlayer.onICYMetadataReceived = { [weak self] icyMetadata in
+            guard let self, self.radioPlayer.isPlaying else { return }
+            self.handleIncomingSongMetadata(icyMetadata, sourceIsICY: true)
         }
     }
 
@@ -312,40 +351,131 @@ public final class AppState: ObservableObject {
 
     public func startMetadataPolling() {
         metadataPollingTask?.cancel()
+        guard radioPlayer.isPlaying else {
+            metadataPollingTask = nil
+            return
+        }
         metadataPollingTask = Task { [weak self] in
             guard let self else { return }
-            await self.refreshNowPlayingMetadata()
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 10_000_000_000) // Poll every 10s
-                if Task.isCancelled { break }
+            while !Task.isCancelled && self.radioPlayer.isPlaying {
+                try? await Task.sleep(nanoseconds: 10_000_000_000) // Poll every 10s while playing
+                if Task.isCancelled || !self.radioPlayer.isPlaying { break }
                 await self.refreshNowPlayingMetadata()
             }
         }
     }
 
+    public func stopMetadataPolling() {
+        metadataPollingTask?.cancel()
+        metadataPollingTask = nil
+    }
+
     public func refreshNowPlayingMetadata() async {
+        guard radioPlayer.isPlaying else { return }
         // When streaming an official Chilltrax stream (or when no custom ICY metadata has overridden it),
         // fetch live track details from chilltrax.com
         let shouldQueryChilltraxSongInfo = selectedStream.isChilltraxOfficial
         if shouldQueryChilltraxSongInfo {
             do {
                 let metadata = try await client.fetchNowPlaying(fetchAlbumCover: fetchAlbumCoverFromChilltrax)
+                guard radioPlayer.isPlaying else { return }
                 handleIncomingSongMetadata(metadata, sourceIsICY: false)
             } catch {
                 // Keep existing metadata on transient failure
             }
         } else if fetchAlbumCoverFromChilltrax && currentSong.coverURLString == nil {
             if let cover = try? await client.fetchCurrentAlbumCoverURLString() {
+                guard radioPlayer.isPlaying else { return }
                 var updated = currentSong
                 updated.coverURLString = cover
                 currentSong = updated
-                historyEntries = historyStore.recordSong(updated, station: selectedStream, existingEntries: historyEntries)
+                if hasRecordedCurrentSongInHistory {
+                    historyEntries = historyStore.recordSong(updated, station: selectedStream, existingEntries: historyEntries)
+                }
             }
         }
     }
 
+    private var isActivelyPlayingForHistory: Bool {
+        radioPlayer.isPlaying && radioPlayer.status != .paused && radioPlayer.status != .error
+    }
+
+    private func handlePlaybackActivityChange(isPlaying: Bool, status: RadioPlayer.PlaybackStatus) {
+        let isActiveNow = isPlaying && status != .paused && status != .error
+        guard isActiveNow != wasActivelyPlayingForHistory else { return }
+        wasActivelyPlayingForHistory = isActiveNow
+
+        if isActiveNow {
+            currentSongPlayStartDate = Date()
+            if startPollingAutomatically {
+                startMetadataPolling()
+            }
+            scheduleHistoryRecordingIfNeeded()
+        } else {
+            stopMetadataPolling()
+            if let start = currentSongPlayStartDate {
+                currentSongAccumulatedPlayTime += max(0, Date().timeIntervalSince(start))
+                currentSongPlayStartDate = nil
+            }
+            pendingHistoryTask?.cancel()
+            pendingHistoryTask = nil
+            if !isPlaying {
+                currentSong = .placeholder
+                currentSongAccumulatedPlayTime = 0
+                hasRecordedCurrentSongInHistory = false
+            }
+        }
+    }
+
+    private func scheduleHistoryRecordingIfNeeded() {
+        guard !hasRecordedCurrentSongInHistory,
+              currentSong.isMeaningfulTrack,
+              isActivelyPlayingForHistory else {
+            return
+        }
+
+        let currentSegment = currentSongPlayStartDate.map { max(0, Date().timeIntervalSince($0)) } ?? 0
+        let totalPlayed = currentSongAccumulatedPlayTime + currentSegment
+        let remaining = max(0, minimumHistoryPlayDuration - totalPlayed)
+
+        pendingHistoryTask?.cancel()
+        pendingHistoryTask = nil
+
+        if remaining <= 0 {
+            commitCurrentSongToHistory()
+            return
+        }
+
+        let targetKey = currentSong.normalizedKey
+        let sleepNanoseconds = UInt64((remaining * 1_000_000_000).rounded(.up))
+        pendingHistoryTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: sleepNanoseconds)
+            guard !Task.isCancelled, let self else { return }
+            guard self.isActivelyPlayingForHistory,
+                  self.currentSong.normalizedKey == targetKey,
+                  !self.hasRecordedCurrentSongInHistory else {
+                return
+            }
+            self.commitCurrentSongToHistory()
+        }
+    }
+
+    private func commitCurrentSongToHistory() {
+        guard currentSong.isMeaningfulTrack else { return }
+        hasRecordedCurrentSongInHistory = true
+        pendingHistoryTask = nil
+        historyEntries = historyStore.recordSong(
+            currentSong,
+            station: selectedStream,
+            existingEntries: historyEntries
+        )
+        if !historySearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            updateHistoryExpansionForSearch(previousQuery: historySearchQuery)
+        }
+    }
+
     public func handleIncomingSongMetadata(_ incoming: SongMetadata, sourceIsICY: Bool) {
-        guard incoming.isMeaningfulTrack else { return }
+        guard radioPlayer.isPlaying, incoming.isMeaningfulTrack else { return }
 
         // If we are on an official Chilltrax stream and receive bare ICY metadata, preserve the richer
         // Chilltrax album/mix/cover fields if it's the same track
@@ -362,20 +492,33 @@ public final class AppState: ObservableObject {
 
         let previousKey = currentSong.normalizedKey
         let isNewTrack = previousKey != merged.normalizedKey
-        let isActivelyPlaying = radioPlayer.isPlaying && radioPlayer.status != .paused
+        let isActivelyPlaying = isActivelyPlayingForHistory
         let shouldNotify = isNewTrack && hasReceivedInitialMetadata && notifyOnSongChange && isActivelyPlaying
 
         currentSong = merged
         hasReceivedInitialMetadata = true
 
-        // Record in compressed local history store
-        historyEntries = historyStore.recordSong(
-            merged,
-            station: selectedStream,
-            existingEntries: historyEntries
-        )
-        if !historySearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            updateHistoryExpansionForSearch(previousQuery: historySearchQuery)
+        if isNewTrack {
+            pendingHistoryTask?.cancel()
+            pendingHistoryTask = nil
+            currentSongAccumulatedPlayTime = 0
+            hasRecordedCurrentSongInHistory = false
+            currentSongPlayStartDate = isActivelyPlaying ? Date() : nil
+            if isActivelyPlaying {
+                scheduleHistoryRecordingIfNeeded()
+            }
+        } else if hasRecordedCurrentSongInHistory {
+            // Enrich already-recorded entry with any newly arrived cover/album metadata
+            historyEntries = historyStore.recordSong(
+                merged,
+                station: selectedStream,
+                existingEntries: historyEntries
+            )
+            if !historySearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                updateHistoryExpansionForSearch(previousQuery: historySearchQuery)
+            }
+        } else if isActivelyPlaying && pendingHistoryTask == nil {
+            scheduleHistoryRecordingIfNeeded()
         }
 
         if shouldNotify {
@@ -396,17 +539,23 @@ public final class AppState: ObservableObject {
     }
 
     public func clearHistory() {
+        pendingHistoryTask?.cancel()
+        pendingHistoryTask = nil
         historyEntries = []
         historyStore.save([])
     }
 
     private func refreshCoverArtForSettingChange() async {
         if fetchAlbumCoverFromChilltrax {
+            guard radioPlayer.isPlaying else { return }
             if let cover = try? await client.fetchCurrentAlbumCoverURLString() {
+                guard radioPlayer.isPlaying else { return }
                 var updated = currentSong
                 updated.coverURLString = cover
                 currentSong = updated
-                historyEntries = historyStore.recordSong(updated, station: selectedStream, existingEntries: historyEntries)
+                if hasRecordedCurrentSongInHistory {
+                    historyEntries = historyStore.recordSong(updated, station: selectedStream, existingEntries: historyEntries)
+                }
             }
         } else {
             var updated = currentSong

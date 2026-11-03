@@ -235,7 +235,7 @@ public final class ChilltraxClient: Sendable {
 
     private func fetchData(from url: URL) async throws -> Data {
         var request = URLRequest(url: url)
-        request.setValue("ChilltraxMacOS/1.1 (macOS 14.0)", forHTTPHeaderField: "User-Agent")
+        request.setValue("ChilltraxMacOS/1.2 (macOS 14.0)", forHTTPHeaderField: "User-Agent")
         request.setValue("*/*", forHTTPHeaderField: "Accept")
         let (data, response) = try await session.data(for: request)
         if let httpResponse = response as? HTTPURLResponse,

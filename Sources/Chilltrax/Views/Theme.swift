@@ -135,12 +135,47 @@ public struct WindowAccessor: NSViewRepresentable {
         }
     }
 
+    @MainActor
     public final class Coordinator {
+        private enum DefaultsKeys {
+            static let windowOriginX = "chilltrax.windowOriginX"
+            static let windowTopY = "chilltrax.windowTopY"
+        }
+
+        let defaults: UserDefaults
         var currentExpanded: Bool = false
         var currentResultCount: Int = 0
         var lastAppliedExpanded: Bool?
         var lastAppliedTargetContentHeight: CGFloat?
         var configuredWindowNumbers = Set<Int>()
+        nonisolated(unsafe) private var windowObservers = [NSObjectProtocol]()
+
+        public init(defaults: UserDefaults = .standard) {
+            self.defaults = defaults
+        }
+
+        deinit {
+            for observer in windowObservers {
+                NotificationCenter.default.removeObserver(observer)
+            }
+        }
+
+        @MainActor
+        public func saveWindowPosition(_ window: NSWindow) {
+            defaults.set(Double(window.frame.minX), forKey: DefaultsKeys.windowOriginX)
+            defaults.set(Double(window.frame.maxY), forKey: DefaultsKeys.windowTopY)
+        }
+
+        @MainActor
+        public func restoreWindowPositionIfSaved(_ window: NSWindow) {
+            guard defaults.object(forKey: DefaultsKeys.windowOriginX) != nil,
+                  defaults.object(forKey: DefaultsKeys.windowTopY) != nil else {
+                return
+            }
+            let savedX = CGFloat(defaults.double(forKey: DefaultsKeys.windowOriginX))
+            let savedTopY = CGFloat(defaults.double(forKey: DefaultsKeys.windowTopY))
+            window.setFrameTopLeftPoint(NSPoint(x: savedX, y: savedTopY))
+        }
 
         @MainActor
         func configure(window: NSWindow) {
@@ -154,6 +189,41 @@ public struct WindowAccessor: NSViewRepresentable {
                 window.styleMask.remove(.resizable)
                 window.standardWindowButton(.zoomButton)?.isEnabled = false
                 window.isMovableByWindowBackground = true
+
+                restoreWindowPositionIfSaved(window)
+
+                let center = NotificationCenter.default
+                let moveObserver = center.addObserver(
+                    forName: NSWindow.didMoveNotification,
+                    object: window,
+                    queue: .main
+                ) { [weak self, weak window] _ in
+                    MainActor.assumeIsolated {
+                        guard let self, let window else { return }
+                        self.saveWindowPosition(window)
+                    }
+                }
+                let closeObserver = center.addObserver(
+                    forName: NSWindow.willCloseNotification,
+                    object: window,
+                    queue: .main
+                ) { [weak self, weak window] _ in
+                    MainActor.assumeIsolated {
+                        guard let self, let window else { return }
+                        self.saveWindowPosition(window)
+                    }
+                }
+                let terminateObserver = center.addObserver(
+                    forName: NSApplication.willTerminateNotification,
+                    object: nil,
+                    queue: .main
+                ) { [weak self, weak window] _ in
+                    MainActor.assumeIsolated {
+                        guard let self, let window else { return }
+                        self.saveWindowPosition(window)
+                    }
+                }
+                windowObservers.append(contentsOf: [moveObserver, closeObserver, terminateObserver])
             }
 
             if let toolbar = window.toolbar {

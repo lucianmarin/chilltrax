@@ -159,7 +159,8 @@ final class ChilltraxTests: XCTestCase {
         let state = AppState(
             historyStore: store,
             defaults: defaults,
-            startPollingAutomatically: false
+            startPollingAutomatically: false,
+            minimumHistoryPlayDuration: 0
         )
 
         // Test visualizer mode toggle
@@ -173,7 +174,8 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertEqual(state.selectedStream.name, "Ambient Sleeping Pill")
         XCTAssertEqual(state.selectedStream.urlString, "https://radio.stereoscenic.com/asp-s")
 
-        // Test song change recording & search filtering
+        // Test song change recording & search filtering while playing
+        state.radioPlayer.setSimulatedPlaybackStateForTesting(isPlaying: true, status: .playing)
         state.handleIncomingSongMetadata(
             SongMetadata(artist: "Air", title: "La Femme d'Argent", albumOrMix: "Moon Safari", coverURLString: "https://example.com/air.jpg"),
             sourceIsICY: false
@@ -244,8 +246,10 @@ final class ChilltraxTests: XCTestCase {
         let state = AppState(
             historyStore: CompressedHistoryStore(fileURL: tempFile),
             defaults: defaults,
-            startPollingAutomatically: false
+            startPollingAutomatically: false,
+            minimumHistoryPlayDuration: 0
         )
+        state.radioPlayer.setSimulatedPlaybackStateForTesting(isPlaying: true, status: .playing)
 
         let hostingController = NSHostingController(rootView: CompactPlayerView(appState: state))
         let window = NSWindow(
@@ -258,7 +262,7 @@ final class ChilltraxTests: XCTestCase {
         window.contentViewController = hostingController
         hostingController.view.layoutSubtreeIfNeeded()
 
-        let coordinator = WindowAccessor.Coordinator()
+        let coordinator = WindowAccessor.Coordinator(defaults: defaults)
         coordinator.configure(window: window)
         coordinator.syncSize(isExpanded: false, on: window)
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
@@ -268,6 +272,24 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertFalse(window.styleMask.contains(.resizable))
         XCTAssertEqual(window.minSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
         XCTAssertEqual(window.maxSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
+
+        // Move window & verify position is persisted when closing and restored on a newly launched window
+        window.setFrameTopLeftPoint(NSPoint(x: 345, y: 678))
+        NotificationCenter.default.post(name: NSWindow.willCloseNotification, object: window)
+
+        let reopenedWindow = NSWindow(
+            contentRect: NSRect(x: 100, y: 100, width: ChilltraxTheme.compactWidth, height: ChilltraxTheme.compactHeight),
+            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        let reopenedCoordinator = WindowAccessor.Coordinator(defaults: defaults)
+        reopenedCoordinator.configure(window: reopenedWindow)
+        XCTAssertEqual(reopenedWindow.frame.minX, 345, accuracy: 1.0)
+        XCTAssertEqual(reopenedWindow.frame.maxY, 678, accuracy: 1.0)
+
+        // Reset original test window position for expand/collapse assertions
+        window.setFrameTopLeftPoint(NSPoint(x: 200, y: initialTopY))
 
         // Expand history with 2 results
         state.handleIncomingSongMetadata(
@@ -389,5 +411,67 @@ final class ChilltraxTests: XCTestCase {
         let waveLoudPixels = countActivePixels(mode: .waveform, levels: loudLevels)
         XCTAssertLessThan(waveQuietPixels, waveMediumPixels)
         XCTAssertLessThan(waveMediumPixels, waveLoudPixels)
+    }
+
+    @MainActor
+    func testHistoryOnlyStoresSongsPlayedForMinimumDuration() async throws {
+        let suiteName = "ChilltraxHistoryThresholdTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let tempFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("threshold-history-\(UUID().uuidString).tsv.lzfse")
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        // Default minimum play duration is 10 seconds (clamped to 0...99)
+        let defaultState = AppState(
+            historyStore: CompressedHistoryStore(fileURL: tempFile),
+            defaults: defaults,
+            startPollingAutomatically: false
+        )
+        XCTAssertEqual(defaultState.historyCommitDelaySeconds, 10)
+        XCTAssertEqual(defaultState.minimumHistoryPlayDuration, 10.0)
+        defaultState.historyCommitDelaySeconds = 150
+        XCTAssertEqual(defaultState.historyCommitDelaySeconds, 99)
+        XCTAssertEqual(defaultState.minimumHistoryPlayDuration, 99.0)
+        defaultState.historyCommitDelaySeconds = -5
+        XCTAssertEqual(defaultState.historyCommitDelaySeconds, 0)
+        XCTAssertEqual(defaultState.minimumHistoryPlayDuration, 0.0)
+        XCTAssertEqual(defaultState.currentSong.title, "Title")
+        XCTAssertEqual(defaultState.currentSong.artist, "Artist")
+        XCTAssertEqual(defaultState.currentSong.albumOrMix, "Album")
+        XCTAssertFalse(defaultState.currentSong.isMeaningfulTrack)
+
+        // Use a 100ms threshold in test to verify timer scheduling, skipping, and pause/resume accumulation
+        let state = AppState(
+            historyStore: CompressedHistoryStore(fileURL: tempFile),
+            defaults: defaults,
+            startPollingAutomatically: false,
+            minimumHistoryPlayDuration: 0.10
+        )
+
+        // 1. Metadata arriving while paused / not playing should NOT be stored in history
+        state.radioPlayer.setSimulatedPlaybackStateForTesting(isPlaying: false, status: .paused)
+        state.handleIncomingSongMetadata(
+            SongMetadata(artist: "Zero 7", title: "Destiny", albumOrMix: "Simple Things"),
+            sourceIsICY: false
+        )
+        try await Task.sleep(nanoseconds: 150_000_000)
+        XCTAssertTrue(state.historyEntries.isEmpty)
+
+        // 2. Starting playback and changing/pausing before the minimum duration should NOT store the song
+        state.radioPlayer.setSimulatedPlaybackStateForTesting(isPlaying: true, status: .playing)
+        try await Task.sleep(nanoseconds: 40_000_000)
+        state.handleIncomingSongMetadata(
+            SongMetadata(artist: "Moby", title: "Porcelain", albumOrMix: "Play"),
+            sourceIsICY: false
+        )
+        XCTAssertTrue(state.historyEntries.isEmpty)
+
+        // 3. Playing the song for at least the minimum duration stores it in history
+        try await Task.sleep(nanoseconds: 140_000_000)
+        XCTAssertEqual(state.historyEntries.count, 1)
+        XCTAssertEqual(state.historyEntries.first?.artist, "Moby")
+        XCTAssertEqual(state.historyEntries.first?.title, "Porcelain")
     }
 }

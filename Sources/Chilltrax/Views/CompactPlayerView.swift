@@ -19,26 +19,22 @@ public struct CompactPlayerView: View {
 
                     // Song Metadata + Controls
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(appState.currentSong.title.isEmpty ? "Chilltrax" : appState.currentSong.title)
+                        Text(displayedSongTitle)
                             .font(.system(size: 16, weight: .bold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
-                            .help(appState.currentSong.displayName)
+                            .help("\(displayedSongArtist) — \(displayedSongTitle)")
 
-                        Text(appState.currentSong.artist.isEmpty ? "The World's Chillout Channel" : appState.currentSong.artist)
+                        Text(displayedSongArtist)
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(ChilltraxTheme.accentRed)
                             .lineLimit(1)
 
-                        Text(
-                            !appState.currentSong.albumOrMix.isEmpty
-                                ? appState.currentSong.albumOrMix
-                                : appState.selectedStream.name
-                        )
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                        Text(displayedSongAlbum)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
 
                         if let error = appState.radioPlayer.errorMessage {
                             Text(error)
@@ -159,7 +155,35 @@ public struct CompactPlayerView: View {
         }
     }
 
+    private var isSongPlaying: Bool {
+        appState.radioPlayer.isPlaying && appState.currentSong.isMeaningfulTrack
+    }
+
+    private var displayedSongTitle: String {
+        guard isSongPlaying, !appState.currentSong.title.isEmpty else {
+            return "Title"
+        }
+        return appState.currentSong.title
+    }
+
+    private var displayedSongArtist: String {
+        guard isSongPlaying, !appState.currentSong.artist.isEmpty else {
+            return "Artist"
+        }
+        return appState.currentSong.artist
+    }
+
+    private var displayedSongAlbum: String {
+        guard isSongPlaying, !appState.currentSong.albumOrMix.isEmpty else {
+            return "Album"
+        }
+        return appState.currentSong.albumOrMix
+    }
+
     private var appleMusicURL: URL? {
+        guard isSongPlaying else {
+            return URL(string: "https://music.apple.com")
+        }
         if let buyURL = appState.currentSong.buyURL {
             return buyURL
         }
@@ -182,7 +206,7 @@ public struct CompactPlayerView: View {
             }
         }) {
             ZStack {
-                if appState.fetchAlbumCoverFromChilltrax, let coverURL = appState.currentSong.coverURL {
+                if isSongPlaying, appState.fetchAlbumCoverFromChilltrax, let coverURL = appState.currentSong.coverURL {
                     AsyncImage(url: coverURL) { phase in
                         switch phase {
                         case .success(let image):

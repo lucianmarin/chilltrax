@@ -132,8 +132,8 @@ public struct SongMetadata: Equatable, Codable, Sendable {
     }
 
     public var displayName: String {
-        if artist.isEmpty && title.isEmpty {
-            return "Chilltrax — The World's Chillout Channel"
+        if !isMeaningfulTrack {
+            return "Artist — Title"
         }
         if artist.isEmpty {
             return title
@@ -152,6 +152,7 @@ public struct SongMetadata: Equatable, Codable, Sendable {
         let lowerTitle = title.lowercased()
         let lowerArtist = artist.lowercased()
         if title.isEmpty && artist.isEmpty { return false }
+        if lowerTitle == "title" && (lowerArtist.isEmpty || lowerArtist == "artist") { return false }
         if lowerTitle == "chilltrax" && lowerArtist.isEmpty { return false }
         if lowerTitle.contains("the world's chillout channel") { return false }
         return true
@@ -188,9 +189,9 @@ public struct SongMetadata: Equatable, Codable, Sendable {
     }
 
     public static let placeholder = SongMetadata(
-        artist: "Chilltrax",
-        title: "The World's Chillout Channel",
-        albumOrMix: "Downtempo • Electronica • Chillout"
+        artist: "Artist",
+        title: "Title",
+        albumOrMix: "Album"
     )
 }
 

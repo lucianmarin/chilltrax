@@ -169,6 +169,32 @@ public struct SettingsView: View {
             }
 
             Section("Compressed Song History File") {
+                LabeledContent("Commit Song After Playing") {
+                    HStack(spacing: 8) {
+                        TextField(
+                            "",
+                            value: $appState.historyCommitDelaySeconds,
+                            format: .number
+                        )
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 52)
+                        .multilineTextAlignment(.trailing)
+
+                        Stepper(
+                            "",
+                            value: $appState.historyCommitDelaySeconds,
+                            in: 0...99,
+                            step: 1
+                        )
+                        .labelsHidden()
+
+                        Text("seconds")
+                            .foregroundStyle(.secondary)
+                            .fixedSize()
+                    }
+                }
+
                 LabeledContent("Recorded Songs") {
                     Text("\(appState.historyEntries.count)")
                         .font(.system(.body, design: .rounded).weight(.semibold))

@@ -57,20 +57,30 @@ public final class RadioPlayer: NSObject, ObservableObject {
     public func pause() {
         isPlaying = false
         status = .paused
-        player?.pause()
+        teardownActiveStream()
     }
 
     public func stop() {
         isPlaying = false
         status = .idle
+        teardownActiveStream()
+    }
+
+    private func teardownActiveStream() {
         player?.pause()
+        player?.replaceCurrentItem(with: nil)
         timeControlObserver?.invalidate()
         itemStatusObserver?.invalidate()
         timeControlObserver = nil
         itemStatusObserver = nil
+        if let metaOutput = metadataOutput {
+            playerItem?.remove(metaOutput)
+        }
+        metadataOutput = nil
         playerItem = nil
         player = nil
         currentStreamURL = nil
+        lastRealAudioLevels = nil
     }
 
     public func togglePlayPause(url: URL) {
@@ -79,6 +89,11 @@ public final class RadioPlayer: NSObject, ObservableObject {
         } else {
             play(url: url)
         }
+    }
+
+    public func setSimulatedPlaybackStateForTesting(isPlaying: Bool, status: PlaybackStatus = .playing) {
+        self.isPlaying = isPlaying
+        self.status = isPlaying ? status : .paused
     }
 
     // MARK: - AVPlayer Setup & ICY Metadata
@@ -365,10 +380,11 @@ extension RadioPlayer: @preconcurrency AVPlayerItemMetadataOutputPushDelegate {
         didOutputTimedMetadataGroups groups: [AVTimedMetadataGroup],
         from track: AVPlayerItemTrack?
     ) {
+        guard isPlaying else { return }
         for group in groups {
             for item in group.items {
                 Task { @MainActor [weak self] in
-                    guard let self else { return }
+                    guard let self, self.isPlaying else { return }
                     if let stringValue = try? await item.load(.stringValue),
                        let parsed = SongMetadata.fromICYStreamTitle(stringValue),
                        parsed.isMeaningfulTrack {
