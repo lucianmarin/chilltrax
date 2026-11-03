@@ -2,25 +2,35 @@ import SwiftUI
 import AppKit
 
 public struct SettingsView: View {
-    @ObservedObject public var appState: AppState
+    public enum SettingsTab: Hashable {
+        case broadcast
+        case preferences
+    }
 
-    public init(appState: AppState) {
+    @ObservedObject public var appState: AppState
+    @State private var selectedTab: SettingsTab
+
+    public init(appState: AppState, initialTab: SettingsTab = .broadcast) {
         self.appState = appState
+        self._selectedTab = State(initialValue: initialTab)
     }
 
     public var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             broadcastSettingsTab
                 .tabItem {
                     Label("Broadcast & Station", systemImage: "antenna.radiowaves.left.and.right")
                 }
+                .tag(SettingsTab.broadcast)
 
             preferencesTab
                 .tabItem {
                     Label("Player & Storage", systemImage: "slider.horizontal.3")
                 }
+                .tag(SettingsTab.preferences)
         }
-        .frame(width: 540, height: 430)
+        .frame(width: 540)
+        .fixedSize(horizontal: false, vertical: true)
         .padding(12)
         .tint(ChilltraxTheme.accentRed)
     }
@@ -108,8 +118,29 @@ public struct SettingsView: View {
                         .foregroundStyle(ChilltraxTheme.accentRed)
                 }
             }
+
+            Section("Playback Tuning") {
+                Toggle(isOn: $appState.clarityAndBassEnhancerEnabled) {
+                    HStack(spacing: 6) {
+                        Text("Clarity & Bass Enhancer")
+                        Image(systemName: "headphones")
+                            .foregroundStyle(.secondary)
+                        Image(systemName: "hifispeaker")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Toggle(isOn: $appState.stereoWidenerEnabled) {
+                    HStack(spacing: 6) {
+                        Text("Stereo Widener")
+                        Image(systemName: "hifispeaker")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
         }
         .formStyle(.grouped)
+        .scrollDisabled(true)
     }
 
     private var preferencesTab: some View {
@@ -178,12 +209,15 @@ public struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                LabeledContent("Storage Path") {
+                HStack(spacing: 12) {
+                    Text("Storage Path")
+                        .fixedSize()
+                    Spacer(minLength: 12)
                     Text(appState.historyStore.fileURL.path)
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                        .truncationMode(.middle)
+                        .truncationMode(.tail)
                         .help(appState.historyStore.fileURL.path)
                 }
 
@@ -200,5 +234,6 @@ public struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .scrollDisabled(true)
     }
 }

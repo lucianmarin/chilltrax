@@ -849,6 +849,167 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertNil(coverCache.cachedImage(for: coverURL1))
         XCTAssertNil(coverCache.cachedImage(for: coverURL2))
     }
+
+    @MainActor
+    func testClarityAndBassEnhancerAndStereoWidenerSettingsAndDSP() {
+        let suiteName = "ChilltraxSoundEnhancerTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let tempFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("enhancer-history-\(UUID().uuidString).tsv.lzfse")
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        let state = AppState(
+            historyStore: CompressedHistoryStore(fileURL: tempFile),
+            defaults: defaults,
+            startPollingAutomatically: false
+        )
+
+        XCTAssertFalse(state.clarityAndBassEnhancerEnabled)
+        XCTAssertFalse(state.stereoWidenerEnabled)
+        XCTAssertFalse(state.radioPlayer.clarityAndBassEnhancerEnabled)
+        XCTAssertFalse(state.radioPlayer.stereoWidenerEnabled)
+
+        state.clarityAndBassEnhancerEnabled = true
+        state.stereoWidenerEnabled = true
+        XCTAssertTrue(state.radioPlayer.clarityAndBassEnhancerEnabled)
+        XCTAssertTrue(state.radioPlayer.stereoWidenerEnabled)
+        XCTAssertTrue(state.radioPlayer.audioEnhancerDSP.clarityAndBassEnabled)
+        XCTAssertTrue(state.radioPlayer.audioEnhancerDSP.stereoWidenerEnabled)
+
+        // Verify persistence across AppState reloads
+        let reloaded = AppState(
+            historyStore: CompressedHistoryStore(fileURL: tempFile),
+            defaults: defaults,
+            startPollingAutomatically: false
+        )
+        XCTAssertTrue(reloaded.clarityAndBassEnhancerEnabled)
+        XCTAssertTrue(reloaded.stereoWidenerEnabled)
+        XCTAssertTrue(reloaded.radioPlayer.clarityAndBassEnhancerEnabled)
+        XCTAssertTrue(reloaded.radioPlayer.stereoWidenerEnabled)
+
+        // Verify DSP stereo widening increases mid/high Side energy while respecting [-1, 1] bounds
+        let dsp = AudioEnhancerDSP(sampleRate: 44100)
+        let frameCount = 512
+        let leftOrig = (0..<frameCount).map { i in Float(sin(Double(i) * 0.25) * 0.45) }
+        let rightOrig = (0..<frameCount).map { i in Float(sin(Double(i) * 0.25 + 0.6) * 0.35) }
+
+        // Bypass leaves samples untouched
+        var leftBypass = leftOrig
+        var rightBypass = rightOrig
+        dsp.processStereoPlanar(left: &leftBypass, right: &rightBypass, frameCount: frameCount)
+        XCTAssertEqual(leftBypass, leftOrig)
+        XCTAssertEqual(rightBypass, rightOrig)
+
+        // Stereo Widener increases high-frequency L-R separation
+        dsp.stereoWidenerEnabled = true
+        var leftWidened = leftOrig
+        var rightWidened = rightOrig
+        dsp.processStereoPlanar(left: &leftWidened, right: &rightWidened, frameCount: frameCount)
+        let origSideEnergy = zip(leftOrig.suffix(256), rightOrig.suffix(256)).reduce(Float(0)) { acc, pair in
+            let diff = pair.0 - pair.1
+            return acc + diff * diff
+        }
+        let wideSideEnergy = zip(leftWidened.suffix(256), rightWidened.suffix(256)).reduce(Float(0)) { acc, pair in
+            let diff = pair.0 - pair.1
+            return acc + diff * diff
+        }
+        XCTAssertGreaterThan(wideSideEnergy, origSideEnergy)
+
+        // Clarity & Bass Enhancer shapes signal and soft-limits within [-1.0, 1.0]
+        dsp.clarityAndBassEnabled = true
+        dsp.reset()
+        var leftEnhanced = leftOrig
+        var rightEnhanced = rightOrig
+        dsp.processStereoPlanar(left: &leftEnhanced, right: &rightEnhanced, frameCount: frameCount)
+        XCTAssertNotEqual(leftEnhanced, leftOrig)
+        for s in leftEnhanced + rightEnhanced {
+            XCTAssertLessThanOrEqual(abs(s), 1.0)
+        }
+    }
+
+    @MainActor
+    func testSettingsPanelsFitWithoutScrollbars() {
+        let suiteName = "ChilltraxSettingsLayoutTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let tempFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("settings-history-\(UUID().uuidString).tsv.lzfse")
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        let state = AppState(
+            historyStore: CompressedHistoryStore(fileURL: tempFile),
+            defaults: defaults,
+            startPollingAutomatically: false
+        )
+
+        let controller = NSHostingController(rootView: SettingsView(appState: state, initialTab: .broadcast))
+        let window = NSWindow(contentViewController: controller)
+        window.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        window.layoutIfNeeded()
+
+        let broadcastWindowFrame = window.frame
+        let initialTopY = broadcastWindowFrame.maxY
+
+        func assertNoScrollbars(_ root: NSView, context: String) {
+            var foundScrollView = false
+            func visit(_ view: NSView) {
+                if let sv = view as? NSScrollView, let doc = sv.documentView {
+                    foundScrollView = true
+                    XCTAssertGreaterThanOrEqual(
+                        sv.contentSize.height + 0.5,
+                        doc.frame.height,
+                        "Expected scrollView contentSize.height (\(sv.contentSize.height)) >= doc.frame.height (\(doc.frame.height)) in \(context)"
+                    )
+                    XCTAssertTrue(
+                        sv.verticalScroller?.isHidden ?? true,
+                        "Expected vertical scroller to be hidden in \(context)"
+                    )
+                }
+                for sub in view.subviews {
+                    visit(sub)
+                }
+            }
+            visit(root)
+            XCTAssertTrue(foundScrollView, "Expected Form scroll view in \(context)")
+        }
+
+        assertNoScrollbars(controller.view, context: "broadcast tab")
+
+        func selectTabSegment(_ index: Int, in view: NSView) {
+            if let seg = view as? NSSegmentedControl,
+               seg.segmentCount == 2,
+               seg.label(forSegment: 0) == "Broadcast & Station" {
+                seg.selectedSegment = index
+                seg.sendAction(seg.action, to: seg.target)
+            }
+            for sub in view.subviews {
+                selectTabSegment(index, in: sub)
+            }
+        }
+
+        selectTabSegment(1, in: controller.view)
+        window.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        window.layoutIfNeeded()
+
+        let preferencesWindowFrame = window.frame
+        XCTAssertGreaterThan(preferencesWindowFrame.height, broadcastWindowFrame.height)
+        XCTAssertEqual(preferencesWindowFrame.maxY, initialTopY, accuracy: 1.0)
+        assertNoScrollbars(controller.view, context: "preferences tab")
+
+        selectTabSegment(0, in: controller.view)
+        window.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        window.layoutIfNeeded()
+
+        XCTAssertEqual(window.frame.height, broadcastWindowFrame.height, accuracy: 1.0)
+        XCTAssertEqual(window.frame.maxY, initialTopY, accuracy: 1.0)
+        assertNoScrollbars(controller.view, context: "broadcast tab after switching back")
+    }
 }
 
 private final class MockCoverURLProtocol: URLProtocol {
