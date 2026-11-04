@@ -17,6 +17,12 @@ public enum ChilltraxTheme {
         colorScheme == .dark ? visualizerWhite : visualizerBlack
     }
 
+    public static func visualizerLabelBackground(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark
+            ? Color(white: 0.22).opacity(0.72)
+            : Color(white: 0.90).opacity(0.72)
+    }
+
     public static let compactWidth: CGFloat = 480
     public static let compactHeight: CGFloat = 216
     public static let historyRowHeight: CGFloat = 48

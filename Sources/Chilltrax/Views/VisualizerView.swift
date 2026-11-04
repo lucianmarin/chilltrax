@@ -34,6 +34,10 @@ public struct VisualizerView: View {
         ChilltraxTheme.visualizerContrastColor(for: colorScheme)
     }
 
+    private var labelBackgroundColor: Color {
+        ChilltraxTheme.visualizerLabelBackground(for: colorScheme)
+    }
+
     public var body: some View {
         ZStack(alignment: .topTrailing) {
             Canvas { context, size in
@@ -45,6 +49,7 @@ public struct VisualizerView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .allowsHitTesting(false)
 
             if let onToggleMode {
                 Button(action: onToggleMode) {
@@ -54,13 +59,14 @@ public struct VisualizerView: View {
                         Text(mode.title)
                             .font(.system(size: 10, weight: .medium))
                     }
-                    .foregroundStyle(contrastColor.opacity(0.75))
+                    .foregroundStyle(contrastColor.opacity(0.78))
                     .padding(.horizontal, 7)
                     .padding(.vertical, 3)
-                    .background(contrastColor.opacity(0.07), in: Capsule())
+                    .background(labelBackgroundColor, in: Capsule())
                 }
                 .buttonStyle(.plain)
                 .padding(6)
+                .zIndex(1)
                 .help("Switch visualizer between Waveform and Spectrum")
             }
         }

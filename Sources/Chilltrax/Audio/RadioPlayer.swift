@@ -212,7 +212,7 @@ public final class RadioPlayer: NSObject, ObservableObject {
 
             // Combine band energy, peak transient, and overall musical intensity
             let norm = Double(i) / Double(max(1, count - 1))
-            let spectralWeight = sin(norm * .pi) * 0.32 + 0.68
+            let spectralWeight = sin(norm * .pi) * 0.22 + 0.78
             let combined = (Double(bandRMS) * 2.45 + Double(bandPeak) * 0.95) * 0.68 + overallGain * 0.32
             let scaled = combined * spectralWeight
             let clamped = max(0.07, min(1.0, scaled))
@@ -316,13 +316,13 @@ public final class RadioPlayer: NSObject, ObservableObject {
             let snarePunch = pow((cos(t * 1.30 - 0.55) + 1.0) * 0.5, 4.4)
             let punchTransient = max(beatKick, snarePunch * 0.95)
             // Focal bar position shifts across the spectrum on each beat so punch peaks feel dynamic
-            let punchCenter = 0.28 + 0.44 * ((sin(t * 0.63) + 1.0) * 0.5)
+            let punchCenter = 0.14 + 0.72 * ((sin(t * 0.63) + 1.0) * 0.5)
 
             for i in 0..<count {
                 let norm = Double(i) / Double(max(1, count - 1))
                 // Smooth center-weighted envelope with consistent variation across adjacent red/black/gray bars
-                let envelope = sin(norm * .pi) * 0.55 + 0.45
-                let bassPulse = beatKick * (1.0 - norm * 0.40)
+                let envelope = sin(norm * .pi) * 0.42 + 0.58
+                let bassPulse = beatKick * (1.0 - norm * 0.28)
                 let midWave = pow((sin(t * 2.5 + Double(i) * 0.42) + 1.0) * 0.5, 1.55)
                 let harmonic = pow((cos(t * 3.9 - Double(i) * 0.64) + 1.0) * 0.5, 1.65)
                 let shimmer = pow((sin(t * 5.8 + Double(i) * 0.32) + 1.0) * 0.5, 1.75)
