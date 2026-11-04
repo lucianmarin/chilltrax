@@ -115,6 +115,7 @@ public final class AppState: ObservableObject {
     @Published public private(set) var visibleHistoryLimit: Int = AppState.historyPageSize
     @Published public private(set) var historyEntries: [SongHistoryEntry] = []
     @Published public private(set) var copiedHistoryEntryID: UUID? = nil
+    private var copiedCurrentSongNormalizedKey: String? = nil
     @Published public private(set) var isDiscoveringBroadcasts: Bool = false
     @Published public private(set) var discoveryStatusMessage: String?
 
@@ -158,6 +159,7 @@ public final class AppState: ObservableObject {
     @discardableResult
     public func copyHistoryEntryToClipboard(_ entry: SongHistoryEntry) -> String {
         copiedHistoryEntryID = entry.id
+        copiedCurrentSongNormalizedKey = nil
         let text = entry.clipboardText
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
@@ -197,6 +199,57 @@ public final class AppState: ObservableObject {
 
     public var canSwitchStationFromToolbarStatus: Bool {
         radioPlayer.status == .playing
+    }
+
+    public var currentSongFormattedTitle: String? {
+        guard radioPlayer.isPlaying, currentSong.isMeaningfulTrack else {
+            return nil
+        }
+        let text = currentSong.clipboardText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text
+    }
+
+    public var canCopyCurrentSongToClipboard: Bool {
+        currentSongFormattedTitle != nil
+    }
+
+    @discardableResult
+    public func copyCurrentSongToClipboard() -> String? {
+        guard let text = currentSongFormattedTitle else { return nil }
+        copiedCurrentSongNormalizedKey = currentSong.normalizedKey
+        copiedHistoryEntryID = historyEntries.first(where: { $0.normalizedKey == currentSong.normalizedKey })?.id
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        return text
+    }
+
+    public var canOpenCurrentSongOnAppleMusic: Bool {
+        currentSongAppleMusicURL != nil
+    }
+
+    public var currentSongAppleMusicURL: URL? {
+        guard radioPlayer.isPlaying, currentSong.isMeaningfulTrack else {
+            return nil
+        }
+        if let buyURL = currentSong.buyURL {
+            return buyURL
+        }
+        let query = [currentSong.artist, currentSong.title]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        guard !query.isEmpty,
+              let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+            return nil
+        }
+        return URL(string: "https://music.apple.com/us/search?term=\(encoded)")
+    }
+
+    @discardableResult
+    public func openCurrentSongOnAppleMusic(openURL: (URL) -> Bool = { NSWorkspace.shared.open($0) }) -> URL? {
+        guard let url = currentSongAppleMusicURL else { return nil }
+        _ = openURL(url)
+        return url
     }
 
     public var allAvailableStreams: [StationStream] {
@@ -661,6 +714,10 @@ public final class AppState: ObservableObject {
             station: selectedStream,
             existingEntries: historyEntries
         )
+        if copiedCurrentSongNormalizedKey == currentSong.normalizedKey,
+           let matchingEntry = historyEntries.first(where: { $0.normalizedKey == currentSong.normalizedKey }) {
+            copiedHistoryEntryID = matchingEntry.id
+        }
         cacheAlbumCoverForHistoryItem(currentSong.coverURL)
         if !historySearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             updateHistoryExpansionForSearch(previousQuery: historySearchQuery)

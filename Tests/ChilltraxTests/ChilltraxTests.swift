@@ -932,6 +932,137 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertEqual(window.frame.maxY, initialTopY, accuracy: 1.0)
         assertNoScrollbars(controller.view, context: "broadcast tab after switching back")
     }
+
+    @MainActor
+    func testDockMenuPlayPauseAndSwitchStation() {
+        let suiteName = "ChilltraxDockMenuTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let tempFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("dock-history-\(UUID().uuidString).tsv.lzfse")
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        let historyStore = CompressedHistoryStore(fileURL: tempFile)
+        let historyEntry = SongHistoryEntry(
+            artist: "Bonobo",
+            title: "Kiara",
+            albumOrMix: "Black Sands",
+            stationName: "Chilltrax",
+            stationURLString: StationStream.defaultStream.urlString
+        )
+        historyStore.save([historyEntry])
+
+        let state = AppState(
+            historyStore: historyStore,
+            defaults: defaults,
+            startPollingAutomatically: false
+        )
+        let delegate = ChilltraxAppDelegate(appState: state)
+
+        guard let initialMenu = delegate.applicationDockMenu(NSApplication.shared) else {
+            XCTFail("Expected dock menu")
+            return
+        }
+        XCTAssertFalse(initialMenu.autoenablesItems)
+        XCTAssertEqual(initialMenu.items.count, 5)
+        XCTAssertEqual(initialMenu.items[0].title, "Play")
+        XCTAssertTrue(initialMenu.items[0].isEnabled)
+        XCTAssertEqual(initialMenu.items[1].title, "Switch to Radio Danz")
+        XCTAssertTrue(initialMenu.items[1].isEnabled)
+        XCTAssertTrue(initialMenu.items[2].isSeparatorItem)
+        XCTAssertEqual(initialMenu.items[3].title, "Open on Apple Music")
+        XCTAssertFalse(initialMenu.items[3].isEnabled)
+        XCTAssertNil(initialMenu.items[3].action)
+        XCTAssertEqual(initialMenu.items[4].title, "Copy to clipboard")
+        XCTAssertFalse(initialMenu.items[4].isEnabled)
+        XCTAssertNil(initialMenu.items[4].action)
+        XCTAssertFalse(state.canOpenCurrentSongOnAppleMusic)
+        XCTAssertFalse(state.canCopyCurrentSongToClipboard)
+        XCTAssertNil(state.copyCurrentSongToClipboard())
+        XCTAssertNil(state.openCurrentSongOnAppleMusic { _ in
+            XCTFail("Should not open URL when nothing is playing")
+            return true
+        })
+
+        // Trigger switch station from dock menu
+        delegate.handleDockSwitchStation(initialMenu.items[1])
+        XCTAssertEqual(state.selectedStation, .radioDanz)
+
+        // Even with song metadata loaded, if not playing it remains disabled
+        state.currentSong = SongMetadata(
+            artist: "Bonobo",
+            title: "Kiara",
+            albumOrMix: "Black Sands",
+            buyURLString: "https://music.apple.com/us/album/kiara/415046199?i=415046204"
+        )
+        XCTAssertFalse(state.canOpenCurrentSongOnAppleMusic)
+        XCTAssertFalse(state.canCopyCurrentSongToClipboard)
+        guard let pausedWithMetadataMenu = delegate.applicationDockMenu(NSApplication.shared) else {
+            XCTFail("Expected dock menu")
+            return
+        }
+        XCTAssertEqual(pausedWithMetadataMenu.items.count, 5)
+        XCTAssertTrue(pausedWithMetadataMenu.items[2].isSeparatorItem)
+        XCTAssertFalse(pausedWithMetadataMenu.items[3].isEnabled)
+        XCTAssertNil(pausedWithMetadataMenu.items[3].action)
+        XCTAssertFalse(pausedWithMetadataMenu.items[4].isEnabled)
+        XCTAssertNil(pausedWithMetadataMenu.items[4].action)
+
+        // Simulate playing state with song metadata and verify dock menu & Apple Music URL
+        state.radioPlayer.setSimulatedPlaybackStateForTesting(isPlaying: true, status: .playing)
+        XCTAssertTrue(state.canOpenCurrentSongOnAppleMusic)
+        XCTAssertTrue(state.canCopyCurrentSongToClipboard)
+        guard let playingMenu = delegate.applicationDockMenu(NSApplication.shared) else {
+            XCTFail("Expected dock menu while playing")
+            return
+        }
+        XCTAssertEqual(playingMenu.items.count, 7)
+        XCTAssertEqual(playingMenu.items[0].title, "Kiara")
+        XCTAssertFalse(playingMenu.items[0].isEnabled)
+        XCTAssertNil(playingMenu.items[0].action)
+        XCTAssertEqual(playingMenu.items[1].title, "Bonobo")
+        XCTAssertFalse(playingMenu.items[1].isEnabled)
+        XCTAssertNil(playingMenu.items[1].action)
+        XCTAssertEqual(playingMenu.items[2].title, "Pause")
+        XCTAssertEqual(playingMenu.items[3].title, "Switch to Chilltrax")
+        XCTAssertTrue(playingMenu.items[4].isSeparatorItem)
+        XCTAssertEqual(playingMenu.items[5].title, "Open on Apple Music")
+        XCTAssertTrue(playingMenu.items[5].isEnabled)
+        XCTAssertNotNil(playingMenu.items[5].action)
+        XCTAssertEqual(playingMenu.items[6].title, "Copy to clipboard")
+        XCTAssertTrue(playingMenu.items[6].isEnabled)
+        XCTAssertNotNil(playingMenu.items[6].action)
+
+        var openedURL: URL?
+        _ = state.openCurrentSongOnAppleMusic { url in
+            openedURL = url
+            return true
+        }
+        XCTAssertEqual(openedURL?.absoluteString, "https://music.apple.com/us/album/kiara/415046199?i=415046204")
+
+        XCTAssertEqual(state.historyBadgeLabel(for: historyEntry), "TRAX")
+
+        delegate.handleDockCopyToClipboard(playingMenu.items[6])
+        XCTAssertEqual(NSPasteboard.general.string(forType: .string), "Bonobo - Kiara")
+        XCTAssertEqual(state.historyBadgeLabel(for: historyEntry), "COPY")
+
+        // When a new playing song is not yet committed to history, copying it resets the previous COPY badge to TRAX/DANZ
+        state.currentSong = SongMetadata(
+            artist: "Tycho",
+            title: "Awake",
+            albumOrMix: "Awake"
+        )
+        _ = state.copyCurrentSongToClipboard()
+        XCTAssertEqual(NSPasteboard.general.string(forType: .string), "Tycho - Awake")
+        XCTAssertEqual(state.historyBadgeLabel(for: historyEntry), "TRAX")
+
+        // Trigger play/pause from dock menu to pause
+        delegate.handleDockPlayPause(playingMenu.items[2])
+        XCTAssertFalse(state.radioPlayer.isPlaying)
+        XCTAssertFalse(state.canOpenCurrentSongOnAppleMusic)
+        XCTAssertFalse(state.canCopyCurrentSongToClipboard)
+    }
 }
 
 private final class MockCoverURLProtocol: URLProtocol {

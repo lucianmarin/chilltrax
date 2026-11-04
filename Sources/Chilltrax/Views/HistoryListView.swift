@@ -91,6 +91,11 @@ private struct HistoryRowView: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onCopySongInfo()
+                    }
+                    .help("Copy \"\(entry.clipboardText)\" to Clipboard")
 
                 HStack(spacing: 5) {
                     if !entry.artist.isEmpty {
@@ -98,6 +103,11 @@ private struct HistoryRowView: View {
                             .font(.system(size: 11.5, weight: .medium))
                             .foregroundStyle(ChilltraxTheme.accentRed)
                             .lineLimit(1)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                onCopySongInfo()
+                            }
+                            .help("Copy \"\(entry.clipboardText)\" to Clipboard")
                     }
                     if !entry.albumOrMix.isEmpty {
                         Text("• \(entry.albumOrMix)")

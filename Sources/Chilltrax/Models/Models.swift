@@ -356,6 +356,12 @@ public struct SongMetadata: Equatable, Codable, Sendable {
         return "\(artist) — \(title)"
     }
 
+    public var clipboardText: String {
+        if artist.isEmpty { return title }
+        if title.isEmpty { return artist }
+        return "\(artist) - \(title)"
+    }
+
     public var normalizedKey: String {
         "\(artist.lowercased())|\(title.lowercased())"
     }

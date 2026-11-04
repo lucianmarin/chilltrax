@@ -23,7 +23,12 @@ public struct CompactPlayerView: View {
                             .font(.system(size: 16, weight: .bold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
-                            .help("\(displayedSongArtist) — \(displayedSongTitle)")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                appState.copyCurrentSongToClipboard()
+                            }
+                            .help(songCopyHelpText)
 
                         songInfoSeparator
 
@@ -31,6 +36,12 @@ public struct CompactPlayerView: View {
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(ChilltraxTheme.accentRed)
                             .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                appState.copyCurrentSongToClipboard()
+                            }
+                            .help(songCopyHelpText)
 
                         songInfoSeparator
 
@@ -199,21 +210,14 @@ public struct CompactPlayerView: View {
     }
 
     private var appleMusicURL: URL? {
-        guard isSongPlaying else {
-            return URL(string: "https://music.apple.com")
+        appState.currentSongAppleMusicURL
+    }
+
+    private var songCopyHelpText: String {
+        guard let formatted = appState.currentSongFormattedTitle else {
+            return ""
         }
-        if let buyURL = appState.currentSong.buyURL {
-            return buyURL
-        }
-        let query = [appState.currentSong.artist, appState.currentSong.title]
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-        guard !query.isEmpty,
-              let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
-            return URL(string: "https://music.apple.com")
-        }
-        return URL(string: "https://music.apple.com/us/search?term=\(encoded)")
+        return "Copy \"\(formatted)\" to Clipboard"
     }
 
     @ViewBuilder
