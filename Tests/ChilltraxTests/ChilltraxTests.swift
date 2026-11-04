@@ -351,12 +351,12 @@ final class ChilltraxTests: XCTestCase {
     }
 
     func testAppIconVectorRenderingFromSVG() {
-        let chillBox = AppIcon.parseSVGPath(AppIcon.chillPathD).boundingBoxOfPath
-        let traxBox = AppIcon.parseSVGPath(AppIcon.traxPathD).boundingBoxOfPath
-        let hashBox = AppIcon.parseSVGPath(AppIcon.hashPathD).boundingBoxOfPath
-        XCTAssertFalse(chillBox.isEmpty)
-        XCTAssertFalse(traxBox.isEmpty)
-        XCTAssertFalse(hashBox.isEmpty)
+        let centerDotBox = AppIcon.parseSVGPath(AppIcon.centerDotPathD).boundingBoxOfPath
+        let innerWaveBox = AppIcon.parseSVGPath(AppIcon.innerWavePathD).boundingBoxOfPath
+        let outerWaveBox = AppIcon.parseSVGPath(AppIcon.outerWavePathD).boundingBoxOfPath
+        XCTAssertFalse(centerDotBox.isEmpty)
+        XCTAssertFalse(innerWaveBox.isEmpty)
+        XCTAssertFalse(outerWaveBox.isEmpty)
 
         let pngData = AppIcon.renderPNGData(pixelSize: 1024)
         XCTAssertNotNil(pngData)
@@ -366,6 +366,7 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertNotNil(placeholderData)
         XCTAssertGreaterThan(placeholderData?.count ?? 0, 1_000)
 
+        XCTAssertEqual(ChilltraxTheme.accentRed, Color(red: 0xFA / 255.0, green: 0, blue: 0))
         XCTAssertEqual(ChilltraxTheme.visualizerBackground(for: .light), ChilltraxTheme.visualizerWhite)
         XCTAssertEqual(ChilltraxTheme.visualizerContrastColor(for: .light), ChilltraxTheme.visualizerBlack)
         XCTAssertEqual(ChilltraxTheme.visualizerBackground(for: .dark), ChilltraxTheme.visualizerBlack)

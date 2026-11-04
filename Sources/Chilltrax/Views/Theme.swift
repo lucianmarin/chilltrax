@@ -2,8 +2,8 @@ import SwiftUI
 import AppKit
 
 public enum ChilltraxTheme {
-    /// Brand red accent color from `icon.svg` (`#E60E30`)
-    public static let accentRed = Color(red: 0xE6 / 255.0, green: 0x0E / 255.0, blue: 0x30 / 255.0)
+    /// Brand red accent color from `icon.svg` (`#FA0000`)
+    public static let accentRed = Color(red: 0xFA / 255.0, green: 0x00 / 255.0, blue: 0x00 / 255.0)
     public static let visualizerBlack = Color.black
     public static let visualizerWhite = Color.white
     /// Neutral `#808080` gray for the third waveform and third spectrum bar color

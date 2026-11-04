@@ -49,7 +49,7 @@ public struct CompactPlayerView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                    // Play / Pause Primary Button (#E60E30 background color, no glow)
+                    // Play / Pause Primary Button (#FA0000 background color, no glow)
                     Button(action: {
                         appState.togglePlayPause()
                     }) {
