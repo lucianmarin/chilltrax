@@ -17,19 +17,7 @@ public struct HistoryListView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            if appState.filteredHistoryEntries.isEmpty {
-                HStack(spacing: 8) {
-                    Image(systemName: appState.historyEntries.isEmpty ? "clock.arrow.circlepath" : "magnifyingglass")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.tertiary)
-                    Text(appState.historyEntries.isEmpty ? "No songs recorded yet" : "No matching songs in history")
-                        .font(.system(size: 12.5, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .frame(height: ChilltraxTheme.historyRowHeight)
-            } else {
+            if !appState.filteredHistoryEntries.isEmpty {
                 ScrollView(.vertical, showsIndicators: appState.displayedHistoryEntries.count > ChilltraxTheme.maxVisibleHistoryRows) {
                     LazyVStack(spacing: 0) {
                         let displayed = appState.displayedHistoryEntries

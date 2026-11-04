@@ -325,13 +325,34 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertFalse(state.isHistoryExpanded)
         XCTAssertFalse(state.isHistoryButtonHighlighted)
 
-        // Opening history directly also highlights the toolbar button
+        // Opening history directly highlights the toolbar button and shows the search bar
+        XCTAssertFalse(state.isSearchBarVisible)
         state.toggleHistoryExpanded()
         XCTAssertTrue(state.isHistoryExpanded)
         XCTAssertTrue(state.isHistoryButtonHighlighted)
+        XCTAssertTrue(state.isSearchBarVisible)
+        // Typing a query with no matching results keeps song history expanded & search bar visible when "Show Song History" is on, with 0 results height
+        state.historySearchQuery = "nonexistent-query-xyz"
+        XCTAssertTrue(state.filteredHistoryEntries.isEmpty)
+        XCTAssertTrue(state.isHistoryExpanded)
+        XCTAssertTrue(state.isSearchBarVisible)
+        XCTAssertEqual(ChilltraxTheme.historyListHeight(forResultCount: 0), 0)
+        XCTAssertEqual(
+            ChilltraxTheme.contentHeight(isExpanded: true, resultCount: 0),
+            ChilltraxTheme.compactHeight + ChilltraxTheme.searchBarSectionHeight
+        )
+        // Clearing query or matching again keeps song history expanded & search bar visible
+        state.historySearchQuery = "moon"
+        XCTAssertTrue(state.isHistoryExpanded)
+        XCTAssertTrue(state.isSearchBarVisible)
+        state.historySearchQuery = ""
+        XCTAssertTrue(state.isHistoryExpanded)
+        XCTAssertTrue(state.isSearchBarVisible)
+        // Collapsing history hides search bar
         state.toggleHistoryExpanded()
         XCTAssertFalse(state.isHistoryExpanded)
         XCTAssertFalse(state.isHistoryButtonHighlighted)
+        XCTAssertFalse(state.isSearchBarVisible)
 
         // Disabling album cover setting clears current song cover URL
         state.fetchAlbumCoverFromChilltrax = false
@@ -974,7 +995,7 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertEqual(initialMenu.items[3].title, "Open on Apple Music")
         XCTAssertFalse(initialMenu.items[3].isEnabled)
         XCTAssertNil(initialMenu.items[3].action)
-        XCTAssertEqual(initialMenu.items[4].title, "Copy to clipboard")
+        XCTAssertEqual(initialMenu.items[4].title, "Copy to Clipboard")
         XCTAssertFalse(initialMenu.items[4].isEnabled)
         XCTAssertNil(initialMenu.items[4].action)
         XCTAssertFalse(state.canOpenCurrentSongOnAppleMusic)
@@ -1030,7 +1051,7 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertEqual(playingMenu.items[5].title, "Open on Apple Music")
         XCTAssertTrue(playingMenu.items[5].isEnabled)
         XCTAssertNotNil(playingMenu.items[5].action)
-        XCTAssertEqual(playingMenu.items[6].title, "Copy to clipboard")
+        XCTAssertEqual(playingMenu.items[6].title, "Copy to Clipboard")
         XCTAssertTrue(playingMenu.items[6].isEnabled)
         XCTAssertNotNil(playingMenu.items[6].action)
 

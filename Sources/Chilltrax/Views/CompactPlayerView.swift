@@ -5,6 +5,7 @@ public struct CompactPlayerView: View {
     @Environment(\.openSettings) private var openSettings
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHoveringArtwork: Bool = false
+    @FocusState private var isSearchFieldFocused: Bool
 
     public init(appState: AppState) {
         self.appState = appState
@@ -98,14 +99,21 @@ public struct CompactPlayerView: View {
             .padding(.bottom, 12)
             .fixedSize(horizontal: false, vertical: true)
 
-            Divider()
+            if appState.isSearchBarVisible {
+                Divider()
 
-            // Compact Status-Bar Style History Search Bar at the bottom of the player
-            historySearchBox
-                .fixedSize(horizontal: false, vertical: true)
+                // Compact Status-Bar Style History Search Bar at the bottom of the player
+                historySearchBox
+                    .fixedSize(horizontal: false, vertical: true)
+                    .onAppear {
+                        DispatchQueue.main.async {
+                            isSearchFieldFocused = true
+                        }
+                    }
+            }
 
             // Expandable Searchable History Drawer
-            if appState.isHistoryExpanded {
+            if appState.isHistoryExpanded && !appState.filteredHistoryEntries.isEmpty {
                 Divider()
                 HistoryListView(appState: appState)
                     .frame(maxWidth: .infinity)
@@ -120,10 +128,20 @@ public struct CompactPlayerView: View {
         )
         .clipped()
         .tint(ChilltraxTheme.accentRed)
+        .onChange(of: appState.isHistoryExpanded) { _, isExpanded in
+            if isExpanded {
+                DispatchQueue.main.async {
+                    isSearchFieldFocused = true
+                }
+            } else {
+                isSearchFieldFocused = false
+            }
+        }
         .background(
             WindowAccessor(
                 isHistoryExpanded: appState.isHistoryExpanded,
                 historyCount: appState.filteredHistoryEntries.count,
+                showSearchBar: appState.isSearchBarVisible,
                 visualizerMode: appState.visualizerMode,
                 playbackStatus: appState.radioPlayer.status
             )
@@ -178,7 +196,8 @@ public struct CompactPlayerView: View {
     private var currentContentHeight: CGFloat {
         ChilltraxTheme.contentHeight(
             isExpanded: appState.isHistoryExpanded,
-            resultCount: appState.filteredHistoryEntries.count
+            resultCount: appState.filteredHistoryEntries.count,
+            showSearchBar: appState.isSearchBarVisible
         )
     }
 
@@ -289,9 +308,9 @@ public struct CompactPlayerView: View {
             TextField("Search played songs by title, artist, album…", text: $appState.historySearchQuery)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12.5))
+                .focused($isSearchFieldFocused)
 
-            if !appState.historySearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-               !appState.filteredHistoryEntries.isEmpty {
+            if !appState.historySearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text("\(appState.filteredHistoryEntries.count)")
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)

@@ -89,6 +89,9 @@ public final class AppState: ObservableObject {
     @Published public var isHistoryExpanded: Bool {
         didSet {
             defaults.set(isHistoryExpanded, forKey: DefaultsKeys.isHistoryExpanded)
+            if !isUpdatingExpansionFromSearch {
+                isHistoryManuallyExpanded = isHistoryExpanded
+            }
             if !isHistoryExpanded {
                 visibleHistoryLimit = Self.historyPageSize
             }
@@ -134,6 +137,8 @@ public final class AppState: ObservableObject {
     private var wasActivelyPlayingForHistory: Bool = false
     private var cancellables = Set<AnyCancellable>()
     private var hasReceivedInitialMetadata = false
+    private var isUpdatingExpansionFromSearch = false
+    private var isHistoryManuallyExpanded = false
 
     public var filteredHistoryEntries: [SongHistoryEntry] {
         guard !historySearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -148,6 +153,10 @@ public final class AppState: ObservableObject {
 
     public var hasMoreHistoryEntries: Bool {
         filteredHistoryEntries.count > visibleHistoryLimit
+    }
+
+    public var isSearchBarVisible: Bool {
+        isHistoryExpanded
     }
 
     public var isHistoryButtonHighlighted: Bool {
@@ -368,11 +377,14 @@ public final class AppState: ObservableObject {
             self.fetchAlbumCoverFromChilltrax = true
         }
 
+        let initialHistoryExpanded: Bool
         if defaults.object(forKey: DefaultsKeys.isHistoryExpanded) != nil {
-            self.isHistoryExpanded = defaults.bool(forKey: DefaultsKeys.isHistoryExpanded)
+            initialHistoryExpanded = defaults.bool(forKey: DefaultsKeys.isHistoryExpanded)
         } else {
-            self.isHistoryExpanded = false
+            initialHistoryExpanded = false
         }
+        self.isHistoryExpanded = initialHistoryExpanded
+        self.isHistoryManuallyExpanded = initialHistoryExpanded
 
         // Load compressed song history from disk
         self.historyEntries = historyStore.load()
@@ -514,6 +526,9 @@ public final class AppState: ObservableObject {
     }
 
     private func updateHistoryExpansionForSearch(previousQuery: String) {
+        guard !isHistoryManuallyExpanded else { return }
+        isUpdatingExpansionFromSearch = true
+        defer { isUpdatingExpansionFromSearch = false }
         let trimmed = historySearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let previousTrimmed = previousQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {

@@ -77,7 +77,7 @@ public final class ChilltraxAppDelegate: NSObject, NSApplicationDelegate, NSMenu
 
         let canCopySong = appState.canCopyCurrentSongToClipboard
         let copyItem = NSMenuItem(
-            title: "Copy to clipboard",
+            title: "Copy to Clipboard",
             action: canCopySong ? #selector(handleDockCopyToClipboard(_:)) : nil,
             keyEquivalent: ""
         )
@@ -153,6 +153,13 @@ struct ChilltraxApp: App {
         .defaultSize(width: ChilltraxTheme.compactWidth, height: ChilltraxTheme.compactHeight)
         .windowResizability(.contentSize)
         .commands {
+            CommandGroup(after: .toolbar) {
+                Button(appState.isHistoryExpanded ? "Hide Song History" : "Show Song History") {
+                    appState.toggleHistoryExpanded()
+                }
+                .keyboardShortcut("h", modifiers: [.command, .shift])
+            }
+
             CommandMenu("Playback") {
                 Button(appState.radioPlayer.isPlaying ? "Pause" : "Play") {
                     appState.togglePlayPause()
@@ -171,11 +178,6 @@ struct ChilltraxApp: App {
                 }
                 .keyboardShortcut("v", modifiers: [.command, .shift])
 
-                Button(appState.isHistoryExpanded ? "Hide Song History" : "Show Song History") {
-                    appState.toggleHistoryExpanded()
-                }
-                .keyboardShortcut("h", modifiers: [.command, .shift])
-
                 Divider()
 
                 Button("Refresh Current Song Info") {
@@ -193,7 +195,7 @@ struct ChilltraxApp: App {
                 .keyboardShortcut("m", modifiers: [.command, .shift])
                 .disabled(!appState.canOpenCurrentSongOnAppleMusic)
 
-                Button("Copy to clipboard") {
+                Button("Copy to Clipboard") {
                     appState.copyCurrentSongToClipboard()
                 }
                 .keyboardShortcut("c", modifiers: [.command, .shift])

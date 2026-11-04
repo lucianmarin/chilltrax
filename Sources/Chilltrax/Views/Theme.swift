@@ -24,36 +24,46 @@ public enum ChilltraxTheme {
     }
 
     public static let compactWidth: CGFloat = 480
-    public static let compactHeight: CGFloat = 216
+    public static let compactHeight: CGFloat = 172
+    public static let searchBarSectionHeight: CGFloat = 44
     public static let historyRowHeight: CGFloat = 48
     public static let maxVisibleHistoryRows: Int = 6
-    public static let expandedHeight: CGFloat = compactHeight + 1 + CGFloat(maxVisibleHistoryRows) * historyRowHeight
+    public static let expandedHeight: CGFloat = compactHeight + searchBarSectionHeight + 1 + CGFloat(maxVisibleHistoryRows) * historyRowHeight
 
     public static func historyListHeight(forResultCount count: Int) -> CGFloat {
-        let visibleRows = max(1, min(count, maxVisibleHistoryRows))
+        guard count > 0 else { return 0 }
+        let visibleRows = min(count, maxVisibleHistoryRows)
         return CGFloat(visibleRows) * historyRowHeight
     }
 
-    public static func contentHeight(isExpanded: Bool, resultCount: Int) -> CGFloat {
-        guard isExpanded else { return compactHeight }
-        return compactHeight + 1 + historyListHeight(forResultCount: resultCount)
+    public static func contentHeight(
+        isExpanded: Bool,
+        resultCount: Int,
+        showSearchBar: Bool = false
+    ) -> CGFloat {
+        let baseHeight = (showSearchBar || isExpanded) ? (compactHeight + searchBarSectionHeight) : compactHeight
+        guard isExpanded, resultCount > 0 else { return baseHeight }
+        return baseHeight + 1 + historyListHeight(forResultCount: resultCount)
     }
 }
 
 public struct WindowAccessor: NSViewRepresentable {
     public var isHistoryExpanded: Bool
     public var historyCount: Int
+    public var showSearchBar: Bool
     public var visualizerMode: VisualizerMode
     public var playbackStatus: RadioPlayer.PlaybackStatus
 
     public init(
         isHistoryExpanded: Bool,
         historyCount: Int = 0,
+        showSearchBar: Bool = false,
         visualizerMode: VisualizerMode = .spectrum,
         playbackStatus: RadioPlayer.PlaybackStatus = .idle
     ) {
         self.isHistoryExpanded = isHistoryExpanded
         self.historyCount = historyCount
+        self.showSearchBar = showSearchBar
         self.visualizerMode = visualizerMode
         self.playbackStatus = playbackStatus
     }
@@ -70,17 +80,20 @@ public struct WindowAccessor: NSViewRepresentable {
             coordinator.syncSize(
                 isExpanded: coordinator.currentExpanded,
                 resultCount: coordinator.currentResultCount,
+                showSearchBar: coordinator.currentShowSearchBar,
                 on: window
             )
         }
         context.coordinator.currentExpanded = isHistoryExpanded
         context.coordinator.currentResultCount = historyCount
+        context.coordinator.currentShowSearchBar = showSearchBar
         DispatchQueue.main.async {
             if let window = view.window {
                 context.coordinator.configure(window: window)
                 context.coordinator.syncSize(
                     isExpanded: isHistoryExpanded,
                     resultCount: historyCount,
+                    showSearchBar: showSearchBar,
                     on: window
                 )
             }
@@ -91,11 +104,13 @@ public struct WindowAccessor: NSViewRepresentable {
     public func updateNSView(_ nsView: NSView, context: Context) {
         context.coordinator.currentExpanded = isHistoryExpanded
         context.coordinator.currentResultCount = historyCount
+        context.coordinator.currentShowSearchBar = showSearchBar
         if let window = nsView.window {
             context.coordinator.configure(window: window)
             context.coordinator.syncSize(
                 isExpanded: isHistoryExpanded,
                 resultCount: historyCount,
+                showSearchBar: showSearchBar,
                 on: window
             )
         }
@@ -105,6 +120,7 @@ public struct WindowAccessor: NSViewRepresentable {
             context.coordinator.syncSize(
                 isExpanded: isHistoryExpanded,
                 resultCount: historyCount,
+                showSearchBar: showSearchBar,
                 on: window
             )
         }
@@ -153,6 +169,7 @@ public struct WindowAccessor: NSViewRepresentable {
         let defaults: UserDefaults
         var currentExpanded: Bool = false
         var currentResultCount: Int = 0
+        var currentShowSearchBar: Bool = false
         var lastAppliedExpanded: Bool?
         var lastAppliedTargetContentHeight: CGFloat?
         var configuredWindowNumbers = Set<Int>()
@@ -250,15 +267,18 @@ public struct WindowAccessor: NSViewRepresentable {
         func syncSize(
             isExpanded: Bool,
             resultCount: Int = ChilltraxTheme.maxVisibleHistoryRows,
+            showSearchBar: Bool = false,
             on window: NSWindow
         ) {
             currentExpanded = isExpanded
             currentResultCount = resultCount
+            currentShowSearchBar = showSearchBar
 
             let toolbarInset = max(0, window.frame.height - window.contentLayoutRect.height)
             let targetContentHeight = ChilltraxTheme.contentHeight(
                 isExpanded: isExpanded,
-                resultCount: resultCount
+                resultCount: resultCount,
+                showSearchBar: showSearchBar
             )
             let targetWindowHeight = targetContentHeight + toolbarInset
             let fixedWidth = ChilltraxTheme.compactWidth
