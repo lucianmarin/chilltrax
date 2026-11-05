@@ -46,6 +46,8 @@ public struct VisualizerView: View {
                     drawSpectrum(context: &context, size: size)
                 case .waveform:
                     drawWaveform(context: &context, size: size)
+                case .off:
+                    break
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

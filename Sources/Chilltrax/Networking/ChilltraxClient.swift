@@ -100,13 +100,25 @@ public final class ChilltraxClient: Sendable {
             let artist = ChilltraxNowPlayingResponse.decodeHTMLEntities(item.artist ?? "")
             let title = ChilltraxNowPlayingResponse.decodeHTMLEntities(item.title ?? "")
             guard !artist.isEmpty || !title.isEmpty else { return nil }
+            let rawPicture = item.picture?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let resolvedCover: String?
+            if let rawPicture, !rawPicture.isEmpty {
+                if rawPicture.hasPrefix("http://") || rawPicture.hasPrefix("https://") {
+                    resolvedCover = rawPicture
+                } else {
+                    let cleaned = rawPicture.hasPrefix("/") ? String(rawPicture.dropFirst()) : rawPicture
+                    resolvedCover = "\(station.websiteURL.absoluteString)\(cleaned)"
+                }
+            } else {
+                resolvedCover = nil
+            }
             return SongMetadata(
                 artist: artist,
                 title: title,
                 albumOrMix: ChilltraxNowPlayingResponse.decodeHTMLEntities(item.mix ?? ""),
                 year: item.year ?? "",
                 buyURLString: item.buycd ?? "",
-                coverURLString: item.picture
+                coverURLString: resolvedCover
             )
         }
     }
@@ -406,6 +418,44 @@ public final class ChilltraxClient: Sendable {
             return String(label[range])
         }
         return "Live Stream"
+    }
+
+    // MARK: - iTunes Search API Fallback for Missing Album Covers
+
+    private struct ITunesSearchResponse: Decodable {
+        struct Item: Decodable {
+            let artistName: String?
+            let trackName: String?
+            let collectionName: String?
+            let artworkUrl100: String?
+        }
+        let results: [Item]
+    }
+
+    public func searchAlbumCoverURLString(artist: String, title: String, album: String = "") async throws -> String? {
+        let query = [artist, title]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        guard !query.isEmpty else { return nil }
+
+        var components = URLComponents(string: "https://itunes.apple.com/search")
+        components?.queryItems = [
+            URLQueryItem(name: "term", value: query),
+            URLQueryItem(name: "media", value: "music"),
+            URLQueryItem(name: "entity", value: "song"),
+            URLQueryItem(name: "limit", value: "5")
+        ]
+        guard let url = components?.url else { return nil }
+
+        let data = try await fetchData(from: url)
+        let decoded = try JSONDecoder().decode(ITunesSearchResponse.self, from: data)
+        guard let firstWithArtwork = decoded.results.first(where: { !($0.artworkUrl100 ?? "").isEmpty }),
+              let rawArtwork = firstWithArtwork.artworkUrl100?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !rawArtwork.isEmpty else {
+            return nil
+        }
+        return rawArtwork.replacingOccurrences(of: "100x100bb", with: "300x300bb")
     }
 
     public func fetchImageData(from url: URL) async throws -> Data {

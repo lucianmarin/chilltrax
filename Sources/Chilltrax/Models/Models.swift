@@ -1,6 +1,7 @@
 import Foundation
 
 public enum VisualizerMode: String, CaseIterable, Codable, Identifiable, Sendable {
+    case off = "off"
     case waveform = "waveform"
     case spectrum = "spectrum"
 
@@ -16,8 +17,13 @@ public enum VisualizerMode: String, CaseIterable, Codable, Identifiable, Sendabl
 
     public var id: String { rawValue }
 
+    public var isVisible: Bool {
+        self != .off
+    }
+
     public var title: String {
         switch self {
+        case .off: return "Off"
         case .waveform: return "Waveform"
         case .spectrum: return "Spectrum"
         }
@@ -25,6 +31,7 @@ public enum VisualizerMode: String, CaseIterable, Codable, Identifiable, Sendabl
 
     public var systemImage: String {
         switch self {
+        case .off: return "text.alignleft"
         case .waveform: return "waveform.path.ecg"
         case .spectrum: return "chart.bar.xaxis"
         }

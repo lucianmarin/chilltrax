@@ -159,6 +159,11 @@ struct ChilltraxApp: App {
                 }
                 .keyboardShortcut("a", modifiers: [.command, .shift])
 
+                Button(appState.isVisualizerVisible ? "Hide Visualizer" : "Show Visualizer") {
+                    appState.toggleVisualizerVisibility()
+                }
+                .keyboardShortcut("v", modifiers: [.command, .option])
+
                 Button(appState.isHistoryExpanded ? "Hide Song History" : "Show Song History") {
                     appState.toggleHistoryExpanded()
                 }
@@ -182,6 +187,7 @@ struct ChilltraxApp: App {
                     appState.toggleVisualizerMode()
                 }
                 .keyboardShortcut("v", modifiers: [.command, .shift])
+                .disabled(!appState.isVisualizerVisible)
 
                 Divider()
 

@@ -25,6 +25,8 @@ public enum ChilltraxTheme {
 
     public static let compactWidth: CGFloat = 480
     public static let compactHeight: CGFloat = 172
+    public static let compactNoVisualizerHeight: CGFloat = 92
+    public static let visualizerSectionHeight: CGFloat = compactHeight - compactNoVisualizerHeight
     public static let searchBarSectionHeight: CGFloat = 44
     public static let historyRowHeight: CGFloat = 48
     public static let maxVisibleHistoryRows: Int = 6
@@ -39,9 +41,11 @@ public enum ChilltraxTheme {
     public static func contentHeight(
         isExpanded: Bool,
         resultCount: Int,
-        showSearchBar: Bool = false
+        showSearchBar: Bool = false,
+        showVisualizer: Bool = true
     ) -> CGFloat {
-        let baseHeight = (showSearchBar || isExpanded) ? (compactHeight + searchBarSectionHeight) : compactHeight
+        let playerCardHeight = showVisualizer ? compactHeight : compactNoVisualizerHeight
+        let baseHeight = (showSearchBar || isExpanded) ? (playerCardHeight + searchBarSectionHeight) : playerCardHeight
         guard isExpanded, resultCount > 0 else { return baseHeight }
         return baseHeight + 1 + historyListHeight(forResultCount: resultCount)
     }
@@ -81,12 +85,14 @@ public struct WindowAccessor: NSViewRepresentable {
                 isExpanded: coordinator.currentExpanded,
                 resultCount: coordinator.currentResultCount,
                 showSearchBar: coordinator.currentShowSearchBar,
+                showVisualizer: coordinator.currentShowVisualizer,
                 on: window
             )
         }
         context.coordinator.currentExpanded = isHistoryExpanded
         context.coordinator.currentResultCount = historyCount
         context.coordinator.currentShowSearchBar = showSearchBar
+        context.coordinator.currentShowVisualizer = visualizerMode.isVisible
         DispatchQueue.main.async {
             if let window = view.window {
                 context.coordinator.configure(window: window)
@@ -94,6 +100,7 @@ public struct WindowAccessor: NSViewRepresentable {
                     isExpanded: isHistoryExpanded,
                     resultCount: historyCount,
                     showSearchBar: showSearchBar,
+                    showVisualizer: visualizerMode.isVisible,
                     on: window
                 )
             }
@@ -105,12 +112,14 @@ public struct WindowAccessor: NSViewRepresentable {
         context.coordinator.currentExpanded = isHistoryExpanded
         context.coordinator.currentResultCount = historyCount
         context.coordinator.currentShowSearchBar = showSearchBar
+        context.coordinator.currentShowVisualizer = visualizerMode.isVisible
         if let window = nsView.window {
             context.coordinator.configure(window: window)
             context.coordinator.syncSize(
                 isExpanded: isHistoryExpanded,
                 resultCount: historyCount,
                 showSearchBar: showSearchBar,
+                showVisualizer: visualizerMode.isVisible,
                 on: window
             )
         }
@@ -121,6 +130,7 @@ public struct WindowAccessor: NSViewRepresentable {
                 isExpanded: isHistoryExpanded,
                 resultCount: historyCount,
                 showSearchBar: showSearchBar,
+                showVisualizer: visualizerMode.isVisible,
                 on: window
             )
         }
@@ -170,6 +180,7 @@ public struct WindowAccessor: NSViewRepresentable {
         var currentExpanded: Bool = false
         var currentResultCount: Int = 0
         var currentShowSearchBar: Bool = false
+        var currentShowVisualizer: Bool = true
         var lastAppliedExpanded: Bool?
         var lastAppliedTargetContentHeight: CGFloat?
         var configuredWindowNumbers = Set<Int>()
@@ -268,17 +279,20 @@ public struct WindowAccessor: NSViewRepresentable {
             isExpanded: Bool,
             resultCount: Int = ChilltraxTheme.maxVisibleHistoryRows,
             showSearchBar: Bool = false,
+            showVisualizer: Bool = true,
             on window: NSWindow
         ) {
             currentExpanded = isExpanded
             currentResultCount = resultCount
             currentShowSearchBar = showSearchBar
+            currentShowVisualizer = showVisualizer
 
             let toolbarInset = max(0, window.frame.height - window.contentLayoutRect.height)
             let targetContentHeight = ChilltraxTheme.contentHeight(
                 isExpanded: isExpanded,
                 resultCount: resultCount,
-                showSearchBar: showSearchBar
+                showSearchBar: showSearchBar,
+                showVisualizer: showVisualizer
             )
             let targetWindowHeight = targetContentHeight + toolbarInset
             let fixedWidth = ChilltraxTheme.compactWidth

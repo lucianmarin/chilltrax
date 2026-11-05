@@ -85,16 +85,18 @@ public struct CompactPlayerView: View {
                 .frame(height: 68)
 
                 // Full-width Visualizer (same 68pt height as album cover)
-                VisualizerView(
-                    mode: appState.visualizerMode,
-                    levels: appState.radioPlayer.visualizerLevels,
-                    trailLevels: appState.radioPlayer.visualizerTrailLevels,
-                    phase: appState.radioPlayer.waveformPhase,
-                    isPlaying: appState.radioPlayer.isPlaying,
-                    onToggleMode: { appState.toggleVisualizerMode() }
-                )
-                .frame(maxWidth: .infinity)
-                .frame(height: 68)
+                if appState.isVisualizerVisible {
+                    VisualizerView(
+                        mode: appState.visualizerMode,
+                        levels: appState.radioPlayer.visualizerLevels,
+                        trailLevels: appState.radioPlayer.visualizerTrailLevels,
+                        phase: appState.radioPlayer.waveformPhase,
+                        isPlaying: appState.radioPlayer.isPlaying,
+                        onToggleMode: { appState.toggleVisualizerMode() }
+                    )
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 68)
+                }
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
@@ -171,7 +173,7 @@ public struct CompactPlayerView: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                .help("Visualizer Mode (Waveform or Spectrum)")
+                .help("Visualizer Mode (Off, Waveform, or Spectrum)")
 
                 Toggle(isOn: Binding(
                     get: { appState.isHistoryButtonHighlighted },
@@ -199,7 +201,8 @@ public struct CompactPlayerView: View {
         ChilltraxTheme.contentHeight(
             isExpanded: appState.isHistoryExpanded,
             resultCount: appState.filteredHistoryEntries.count,
-            showSearchBar: appState.isSearchBarVisible
+            showSearchBar: appState.isSearchBarVisible,
+            showVisualizer: appState.isVisualizerVisible
         )
     }
 

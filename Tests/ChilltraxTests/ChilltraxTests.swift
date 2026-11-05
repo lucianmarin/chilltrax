@@ -205,11 +205,24 @@ final class ChilltraxTests: XCTestCase {
             minimumHistoryPlayDuration: 0
         )
 
-        // Test visualizer mode toggle
+        // Test visualizer mode toggle and visibility toggle
         XCTAssertEqual(state.visualizerMode, .spectrum)
         XCTAssertEqual(state.visualizerMode.title, "Spectrum")
+        XCTAssertTrue(state.isVisualizerVisible)
         state.toggleVisualizerMode()
         XCTAssertEqual(state.visualizerMode, .waveform)
+        state.toggleVisualizerVisibility()
+        XCTAssertEqual(state.visualizerMode, .off)
+        XCTAssertEqual(state.visualizerMode.systemImage, "text.alignleft")
+        XCTAssertFalse(state.isVisualizerVisible)
+        XCTAssertEqual(
+            ChilltraxTheme.contentHeight(isExpanded: false, resultCount: 0, showVisualizer: false),
+            ChilltraxTheme.compactNoVisualizerHeight
+        )
+        // Toggling visibility back restores the last active visualizer mode (.waveform)
+        state.toggleVisualizerVisibility()
+        XCTAssertEqual(state.visualizerMode, .waveform)
+        XCTAssertTrue(state.isVisualizerVisible)
 
         // Default station is Chilltrax (TRAX) and can switch to Radio Danz (DANZ)
         XCTAssertEqual(state.selectedStation, .chilltrax)
@@ -876,6 +889,41 @@ final class ChilltraxTests: XCTestCase {
         // Disabling album cover fetching keeps already fetched covers in cache and prevents fetching new ones
         state.fetchAlbumCoverFromChilltrax = false
         let coverURL3 = URL(string: "https://www.chilltrax.com/images/cover/track3.jpg")!
+        MockCoverURLProtocol.requestHandler = { request in
+            let urlString = request.url?.absoluteString ?? ""
+            if urlString.contains("GetLastTen") {
+                let json = """
+                [{"artist":"Zero 7","title":"In the Waiting Line","mix":"Simple Things","picture":"\(coverURL3.absoluteString)"}]
+                """.data(using: .utf8)!
+                let response = HTTPURLResponse(
+                    url: request.url ?? coverURL3,
+                    statusCode: 200,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: ["Content-Type": "application/json"]
+                )!
+                return (response, json)
+            }
+            if urlString.contains("GetCoverImage") {
+                let json = """
+                {"cover":"\(coverURL3.absoluteString)"}
+                """.data(using: .utf8)!
+                let response = HTTPURLResponse(
+                    url: request.url ?? coverURL3,
+                    statusCode: 200,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: ["Content-Type": "application/json"]
+                )!
+                return (response, json)
+            }
+            let response = HTTPURLResponse(
+                url: request.url ?? coverURL1,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "image/png"]
+            )!
+            return (response, pngData)
+        }
+
         state.handleIncomingSongMetadata(
             SongMetadata(
                 artist: "Zero 7",
@@ -887,11 +935,25 @@ final class ChilltraxTests: XCTestCase {
         )
         try await Task.sleep(nanoseconds: 50_000_000)
         XCTAssertNil(state.currentSong.coverURL)
+        XCTAssertNil(state.historyEntries.first?.coverURL)
         XCTAssertFalse(coverCache.isCachedOnDisk(for: coverURL3))
         XCTAssertTrue(coverCache.isCachedOnDisk(for: coverURL1))
         XCTAssertTrue(coverCache.isCachedOnDisk(for: coverURL2))
         XCTAssertNotNil(coverCache.cachedImage(for: coverURL1))
         XCTAssertNotNil(coverCache.cachedImage(for: coverURL2))
+
+        // Turning "Display and fetch album covers" back on fetches covers for songs without album covers
+        state.fetchAlbumCoverFromChilltrax = true
+        for _ in 0..<30 {
+            if coverCache.isCachedOnDisk(for: coverURL3) && state.historyEntries.first?.coverURL == coverURL3 {
+                break
+            }
+            try await Task.sleep(nanoseconds: 25_000_000)
+        }
+        XCTAssertEqual(state.currentSong.coverURL, coverURL3)
+        XCTAssertEqual(state.historyEntries.first?.coverURL, coverURL3)
+        XCTAssertTrue(coverCache.isCachedOnDisk(for: coverURL3))
+        XCTAssertNotNil(coverCache.cachedImage(for: coverURL3))
 
         // Clearing history deletes all cached album covers from disk and memory
         state.clearHistory()

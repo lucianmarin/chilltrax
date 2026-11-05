@@ -13,6 +13,7 @@ public final class AppState: ObservableObject {
         static let discoveredStreams = "chilltrax.discoveredStreams"
         static let stationAPIEndpoints = "chilltrax.stationAPIEndpoints"
         static let visualizerMode = "chilltrax.visualizerMode"
+        static let lastActiveVisualizerMode = "chilltrax.lastActiveVisualizerMode"
         static let notifyOnSongChange = "chilltrax.notifyOnSongChange"
         static let fetchAlbumCoverFromChilltrax = "chilltrax.fetchAlbumCoverFromChilltrax"
         static let isHistoryExpanded = "chilltrax.isHistoryExpanded"
@@ -60,8 +61,13 @@ public final class AppState: ObservableObject {
     @Published public var visualizerMode: VisualizerMode {
         didSet {
             defaults.set(visualizerMode.rawValue, forKey: DefaultsKeys.visualizerMode)
+            if visualizerMode.isVisible {
+                lastActiveVisualizerMode = visualizerMode
+                defaults.set(visualizerMode.rawValue, forKey: DefaultsKeys.lastActiveVisualizerMode)
+            }
         }
     }
+    private var lastActiveVisualizerMode: VisualizerMode = .spectrum
     @Published public var notifyOnSongChange: Bool {
         didSet {
             defaults.set(notifyOnSongChange, forKey: DefaultsKeys.notifyOnSongChange)
@@ -354,9 +360,20 @@ public final class AppState: ObservableObject {
             self.selectedStream = station.defaultStream
         }
 
+        if let lastActiveRaw = defaults.string(forKey: DefaultsKeys.lastActiveVisualizerMode),
+           let lastActive = VisualizerMode(persistedRawValue: lastActiveRaw),
+           lastActive.isVisible {
+            self.lastActiveVisualizerMode = lastActive
+        } else {
+            self.lastActiveVisualizerMode = .spectrum
+        }
+
         if let modeRaw = defaults.string(forKey: DefaultsKeys.visualizerMode),
            let mode = VisualizerMode(persistedRawValue: modeRaw) {
             self.visualizerMode = mode
+            if mode.isVisible {
+                self.lastActiveVisualizerMode = mode
+            }
         } else {
             self.visualizerMode = .spectrum
         }
@@ -513,8 +530,27 @@ public final class AppState: ObservableObject {
         }
     }
 
+    public var isVisualizerVisible: Bool {
+        visualizerMode.isVisible
+    }
+
+    public func toggleVisualizerVisibility() {
+        if visualizerMode.isVisible {
+            visualizerMode = .off
+        } else {
+            visualizerMode = lastActiveVisualizerMode.isVisible ? lastActiveVisualizerMode : .spectrum
+        }
+    }
+
     public func toggleVisualizerMode() {
-        visualizerMode = visualizerMode == .spectrum ? .waveform : .spectrum
+        switch visualizerMode {
+        case .spectrum:
+            visualizerMode = .waveform
+        case .waveform:
+            visualizerMode = .spectrum
+        case .off:
+            visualizerMode = lastActiveVisualizerMode.isVisible ? lastActiveVisualizerMode : .spectrum
+        }
     }
 
     public func toggleHistoryExpanded() {
@@ -823,21 +859,115 @@ public final class AppState: ObservableObject {
     }
 
     private func refreshCoverArtForSettingChange() async {
-        guard fetchAlbumCoverFromChilltrax, radioPlayer.isPlaying else { return }
-        let activeStation = selectedStation
-        let endpoints = stationAPIEndpoints[activeStation] ?? activeStation.defaultAPIEndpoints
-        if let cover = try? await client.fetchCurrentAlbumCoverURLString(
-            station: activeStation,
-            endpoints: endpoints
-        ) {
-            guard radioPlayer.isPlaying, selectedStation == activeStation else { return }
-            var updated = currentSong
-            updated.coverURLString = cover
-            currentSong = updated
-            cacheAlbumCoverForHistoryItem(updated.coverURL)
-            if hasRecordedCurrentSongInHistory {
-                historyEntries = historyStore.recordSong(updated, station: selectedStream, existingEntries: historyEntries)
+        guard fetchAlbumCoverFromChilltrax else { return }
+
+        // 1. Fetch current playing song cover if playing and missing
+        if radioPlayer.isPlaying, currentSong.isMeaningfulTrack, currentSong.coverURL == nil {
+            let activeStation = selectedStation
+            let endpoints = stationAPIEndpoints[activeStation] ?? activeStation.defaultAPIEndpoints
+            if let cover = try? await client.fetchCurrentAlbumCoverURLString(
+                station: activeStation,
+                endpoints: endpoints
+            ) {
+                if radioPlayer.isPlaying, selectedStation == activeStation {
+                    var updated = currentSong
+                    updated.coverURLString = cover
+                    currentSong = updated
+                    cacheAlbumCoverForHistoryItem(updated.coverURL)
+                    if hasRecordedCurrentSongInHistory {
+                        historyEntries = historyStore.recordSong(updated, station: selectedStream, existingEntries: historyEntries)
+                    }
+                }
             }
+        }
+
+        // 2. Backfill any history entries that were recorded without cover URLs while the setting was off
+        await backfillMissingHistoryAlbumCovers()
+    }
+
+    public func backfillMissingHistoryAlbumCovers() async {
+        guard fetchAlbumCoverFromChilltrax else { return }
+        let entriesMissingCovers = historyEntries.filter { $0.coverURL == nil }
+        guard !entriesMissingCovers.isEmpty else { return }
+
+        let stationsWithMissing = Set(entriesMissingCovers.map(\.station))
+        var recentCoverMap: [String: SongMetadata] = [:]
+
+        for station in stationsWithMissing {
+            let endpoints = stationAPIEndpoints[station] ?? station.defaultAPIEndpoints
+            if let recentTracks = try? await client.fetchLastTenTracks(station: station, endpoints: endpoints) {
+                for track in recentTracks where track.coverURL != nil {
+                    recentCoverMap[track.normalizedKey] = track
+                }
+            }
+        }
+
+        guard fetchAlbumCoverFromChilltrax else { return }
+
+        var updatedEntries = historyEntries
+        var didChange = false
+        var urlsToCache: [URL] = []
+
+        for index in updatedEntries.indices where updatedEntries[index].coverURL == nil {
+            let entry = updatedEntries[index]
+            if let matched = recentCoverMap[entry.normalizedKey],
+               let cover = matched.coverURLString,
+               !cover.isEmpty {
+                updatedEntries[index].coverURLString = cover
+                if updatedEntries[index].albumOrMix.isEmpty, !matched.albumOrMix.isEmpty {
+                    updatedEntries[index].albumOrMix = matched.albumOrMix
+                }
+                if updatedEntries[index].year.isEmpty, !matched.year.isEmpty {
+                    updatedEntries[index].year = matched.year
+                }
+                if updatedEntries[index].buyURLString.isEmpty, !matched.buyURLString.isEmpty {
+                    updatedEntries[index].buyURLString = matched.buyURLString
+                }
+                if let url = updatedEntries[index].coverURL {
+                    urlsToCache.append(url)
+                }
+                didChange = true
+            }
+        }
+
+        if didChange {
+            historyEntries = updatedEntries
+            historyStore.save(updatedEntries)
+            for url in urlsToCache {
+                cacheAlbumCoverForHistoryItem(url)
+            }
+        }
+
+        // 3. For any remaining entries still missing cover URLs, look up cover art via iTunes Search API
+        let remainingIndices = historyEntries.indices.filter { historyEntries[$0].coverURL == nil }
+        for index in remainingIndices {
+            guard fetchAlbumCoverFromChilltrax, index < historyEntries.count else { break }
+            let entry = historyEntries[index]
+            guard entry.coverURL == nil else { continue }
+            if let foundCover = try? await client.searchAlbumCoverURLString(
+                artist: entry.artist,
+                title: entry.title,
+                album: entry.albumOrMix
+            ), !foundCover.isEmpty {
+                guard fetchAlbumCoverFromChilltrax else { break }
+                if let targetIndex = historyEntries.firstIndex(where: { $0.id == entry.id }),
+                   historyEntries[targetIndex].coverURL == nil {
+                    var current = historyEntries
+                    current[targetIndex].coverURLString = foundCover
+                    historyEntries = current
+                    historyStore.save(current)
+                    cacheAlbumCoverForHistoryItem(current[targetIndex].coverURL)
+                }
+            }
+        }
+
+        // Also update currentSong if it matches one of the backfilled history entries and still lacks a cover
+        if currentSong.isMeaningfulTrack,
+           currentSong.coverURL == nil,
+           let matchedEntry = historyEntries.first(where: { $0.normalizedKey == currentSong.normalizedKey && $0.coverURL != nil }) {
+            var updatedSong = currentSong
+            updatedSong.coverURLString = matchedEntry.coverURLString
+            currentSong = updatedSong
         }
     }
 }
