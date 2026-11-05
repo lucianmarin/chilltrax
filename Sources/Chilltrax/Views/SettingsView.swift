@@ -127,7 +127,7 @@ public struct SettingsView: View {
         Form {
             Section("Metadata, Artwork & Notifications") {
                 Toggle(
-                    "Fetch incoming album covers",
+                    "Display and fetch album covers",
                     isOn: $appState.fetchAlbumCoverFromChilltrax
                 )
 

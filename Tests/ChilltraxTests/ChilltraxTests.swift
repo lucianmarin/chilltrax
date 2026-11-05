@@ -355,7 +355,9 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertFalse(state.isSearchBarVisible)
 
         // Disabling album cover setting keeps existing fetched album covers displayed and prevents fetching new ones
-        state.fetchAlbumCoverFromChilltrax = false
+        XCTAssertTrue(state.fetchAlbumCoverFromChilltrax)
+        state.toggleAlbumCovers()
+        XCTAssertFalse(state.fetchAlbumCoverFromChilltrax)
         XCTAssertEqual(state.currentSong.coverURL?.absoluteString, "https://example.com/ma.jpg")
         state.handleIncomingSongMetadata(
             SongMetadata(artist: "Bonobo", title: "Cirrus", albumOrMix: "The North Borders", coverURLString: "https://example.com/bonobo.jpg"),

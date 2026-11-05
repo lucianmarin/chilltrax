@@ -521,6 +521,10 @@ public final class AppState: ObservableObject {
         isHistoryExpanded.toggle()
     }
 
+    public func toggleAlbumCovers() {
+        fetchAlbumCoverFromChilltrax.toggle()
+    }
+
     private func updateHistoryExpansionForSearch(previousQuery: String) {
         guard !isHistoryManuallyExpanded else { return }
         isUpdatingExpansionFromSearch = true

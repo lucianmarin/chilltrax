@@ -154,6 +154,11 @@ struct ChilltraxApp: App {
         .windowResizability(.contentSize)
         .commands {
             CommandGroup(after: .toolbar) {
+                Button(appState.fetchAlbumCoverFromChilltrax ? "Hide Album Covers" : "Show Album Covers") {
+                    appState.toggleAlbumCovers()
+                }
+                .keyboardShortcut("a", modifiers: [.command, .shift])
+
                 Button(appState.isHistoryExpanded ? "Hide Song History" : "Show Song History") {
                     appState.toggleHistoryExpanded()
                 }

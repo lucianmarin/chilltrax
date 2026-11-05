@@ -16,7 +16,9 @@ public struct CompactPlayerView: View {
             // Main Compact Player Card
             VStack(spacing: 12) {
                 HStack(alignment: .center, spacing: 14) {
-                    albumArtworkView
+                    if appState.fetchAlbumCoverFromChilltrax {
+                        albumArtworkView
+                    }
 
                     // Song Metadata + Controls
                     VStack(alignment: .leading, spacing: 3) {
