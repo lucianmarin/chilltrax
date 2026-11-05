@@ -247,18 +247,13 @@ public struct CompactPlayerView: View {
             }
         }) {
             ZStack {
-                if isSongPlaying, appState.fetchAlbumCoverFromChilltrax, let coverURL = appState.currentSong.coverURL {
-                    AsyncImage(url: coverURL) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        case .failure, .empty:
-                            defaultStationArtwork
-                        @unknown default:
-                            defaultStationArtwork
-                        }
+                if isSongPlaying, let coverURL = appState.currentSong.coverURL {
+                    CachedCurrentSongCoverView(
+                        url: coverURL,
+                        allowFetchingNewCover: appState.fetchAlbumCoverFromChilltrax,
+                        coverCache: appState.coverCache
+                    ) {
+                        defaultStationArtwork
                     }
                 } else {
                     defaultStationArtwork
@@ -371,6 +366,39 @@ public struct CompactPlayerView: View {
             return .secondary
         case .error:
             return ChilltraxTheme.accentRed
+        }
+    }
+}
+
+private struct CachedCurrentSongCoverView<Placeholder: View>: View {
+    private struct TaskKey: Equatable {
+        let url: URL
+        let allowFetchingNewCover: Bool
+    }
+
+    let url: URL
+    let allowFetchingNewCover: Bool
+    let coverCache: AlbumCoverCache
+    @ViewBuilder let placeholder: () -> Placeholder
+    @State private var loadedImage: NSImage?
+
+    var body: some View {
+        Group {
+            if let image = loadedImage ?? coverCache.cachedImage(for: url) {
+                Image(nsImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                placeholder()
+            }
+        }
+        .task(id: TaskKey(url: url, allowFetchingNewCover: allowFetchingNewCover)) {
+            if let cached = coverCache.cachedImage(for: url) {
+                loadedImage = cached
+            } else if allowFetchingNewCover {
+                loadedImage = await coverCache.image(for: url)
+            }
         }
     }
 }

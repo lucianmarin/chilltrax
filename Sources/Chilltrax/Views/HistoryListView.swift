@@ -25,7 +25,7 @@ public struct HistoryListView: View {
                             HistoryRowView(
                                 entry: entry,
                                 badgeLabel: appState.historyBadgeLabel(for: entry),
-                                showCover: appState.fetchAlbumCoverFromChilltrax,
+                                allowFetchingNewCover: appState.fetchAlbumCoverFromChilltrax,
                                 coverCache: appState.coverCache,
                                 formattedDate: Self.timeFormatter.string(from: entry.playedAt),
                                 showBottomDivider: index < displayed.count - 1 || appState.hasMoreHistoryEntries,
@@ -49,7 +49,7 @@ public struct HistoryListView: View {
 private struct HistoryRowView: View {
     let entry: SongHistoryEntry
     let badgeLabel: String
-    let showCover: Bool
+    let allowFetchingNewCover: Bool
     let coverCache: AlbumCoverCache
     let formattedDate: String
     let showBottomDivider: Bool
@@ -57,22 +57,24 @@ private struct HistoryRowView: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            if showCover {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.primary.opacity(0.07))
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.primary.opacity(0.07))
 
-                    if let coverURL = entry.coverURL {
-                        CachedHistoryCoverView(url: coverURL, coverCache: coverCache)
-                    } else {
-                        Image(systemName: "music.note")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                    }
+                if let coverURL = entry.coverURL {
+                    CachedHistoryCoverView(
+                        url: coverURL,
+                        allowFetchingNewCover: allowFetchingNewCover,
+                        coverCache: coverCache
+                    )
+                } else {
+                    Image(systemName: "music.note")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
                 }
-                .frame(width: 34, height: 34)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
+            .frame(width: 34, height: 34)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.title.isEmpty ? entry.displayName : entry.title)
@@ -161,7 +163,13 @@ private struct HistoryRowView: View {
 }
 
 private struct CachedHistoryCoverView: View {
+    private struct TaskKey: Equatable {
+        let url: URL
+        let allowFetchingNewCover: Bool
+    }
+
     let url: URL
+    let allowFetchingNewCover: Bool
     let coverCache: AlbumCoverCache
     @State private var loadedImage: NSImage?
 
@@ -178,10 +186,10 @@ private struct CachedHistoryCoverView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .task(id: url) {
+        .task(id: TaskKey(url: url, allowFetchingNewCover: allowFetchingNewCover)) {
             if let cached = coverCache.cachedImage(for: url) {
                 loadedImage = cached
-            } else {
+            } else if allowFetchingNewCover {
                 loadedImage = await coverCache.image(for: url)
             }
         }

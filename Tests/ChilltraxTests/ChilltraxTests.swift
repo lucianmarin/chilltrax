@@ -354,9 +354,19 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertFalse(state.isHistoryButtonHighlighted)
         XCTAssertFalse(state.isSearchBarVisible)
 
-        // Disabling album cover setting clears current song cover URL
+        // Disabling album cover setting keeps existing fetched album covers displayed and prevents fetching new ones
         state.fetchAlbumCoverFromChilltrax = false
+        XCTAssertEqual(state.currentSong.coverURL?.absoluteString, "https://example.com/ma.jpg")
+        state.handleIncomingSongMetadata(
+            SongMetadata(artist: "Bonobo", title: "Cirrus", albumOrMix: "The North Borders", coverURLString: "https://example.com/bonobo.jpg"),
+            sourceIsICY: false
+        )
         XCTAssertNil(state.currentSong.coverURL)
+        XCTAssertEqual(state.historyEntries.first?.artist, "Bonobo")
+        XCTAssertNil(state.historyEntries.first?.coverURL)
+        // Previously fetched history covers remain intact
+        XCTAssertEqual(state.historyEntries[1].coverURL?.absoluteString, "https://example.com/ma.jpg")
+        XCTAssertEqual(state.historyEntries[2].coverURL?.absoluteString, "https://example.com/air.jpg")
 
         let chilltraxNotification = SongNotificationManager.makeNotificationContent(
             song: SongMetadata(artist: "Air", title: "La Femme d'Argent", albumOrMix: "Moon Safari"),
@@ -860,6 +870,26 @@ final class ChilltraxTests: XCTestCase {
         let reloadedCache = AlbumCoverCache(directoryURL: coversDir, client: mockClient)
         XCTAssertNotNil(reloadedCache.cachedImage(for: coverURL1))
         XCTAssertNotNil(reloadedCache.cachedImage(for: coverURL2))
+
+        // Disabling album cover fetching keeps already fetched covers in cache and prevents fetching new ones
+        state.fetchAlbumCoverFromChilltrax = false
+        let coverURL3 = URL(string: "https://www.chilltrax.com/images/cover/track3.jpg")!
+        state.handleIncomingSongMetadata(
+            SongMetadata(
+                artist: "Zero 7",
+                title: "In the Waiting Line",
+                albumOrMix: "Simple Things",
+                coverURLString: coverURL3.absoluteString
+            ),
+            sourceIsICY: false
+        )
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertNil(state.currentSong.coverURL)
+        XCTAssertFalse(coverCache.isCachedOnDisk(for: coverURL3))
+        XCTAssertTrue(coverCache.isCachedOnDisk(for: coverURL1))
+        XCTAssertTrue(coverCache.isCachedOnDisk(for: coverURL2))
+        XCTAssertNotNil(coverCache.cachedImage(for: coverURL1))
+        XCTAssertNotNil(coverCache.cachedImage(for: coverURL2))
 
         // Clearing history deletes all cached album covers from disk and memory
         state.clearHistory()

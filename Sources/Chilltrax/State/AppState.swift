@@ -77,10 +77,6 @@ public final class AppState: ObservableObject {
                 Task {
                     await refreshCoverArtForSettingChange()
                 }
-            } else {
-                var updated = currentSong
-                updated.coverURLString = nil
-                currentSong = updated
             }
         }
     }
@@ -648,9 +644,9 @@ public final class AppState: ObservableObject {
                 var updated = currentSong
                 updated.coverURLString = cover
                 currentSong = updated
+                cacheAlbumCoverForHistoryItem(updated.coverURL)
                 if hasRecordedCurrentSongInHistory {
                     historyEntries = historyStore.recordSong(updated, station: selectedStream, existingEntries: historyEntries)
-                    cacheAlbumCoverForHistoryItem(updated.coverURL)
                 }
             }
         }
@@ -750,8 +746,7 @@ public final class AppState: ObservableObject {
             if merged.year.isEmpty { merged.year = currentSong.year }
             if merged.buyURLString.isEmpty { merged.buyURLString = currentSong.buyURLString }
             if merged.coverURLString == nil { merged.coverURLString = currentSong.coverURLString }
-        }
-        if !fetchAlbumCoverFromChilltrax {
+        } else if !fetchAlbumCoverFromChilltrax {
             merged.coverURLString = nil
         }
 
@@ -762,6 +757,7 @@ public final class AppState: ObservableObject {
 
         currentSong = merged
         hasReceivedInitialMetadata = true
+        cacheAlbumCoverForHistoryItem(merged.coverURL)
 
         if isNewTrack {
             pendingHistoryTask?.cancel()
@@ -823,27 +819,21 @@ public final class AppState: ObservableObject {
     }
 
     private func refreshCoverArtForSettingChange() async {
-        if fetchAlbumCoverFromChilltrax {
-            guard radioPlayer.isPlaying else { return }
-            let activeStation = selectedStation
-            let endpoints = stationAPIEndpoints[activeStation] ?? activeStation.defaultAPIEndpoints
-            if let cover = try? await client.fetchCurrentAlbumCoverURLString(
-                station: activeStation,
-                endpoints: endpoints
-            ) {
-                guard radioPlayer.isPlaying, selectedStation == activeStation else { return }
-                var updated = currentSong
-                updated.coverURLString = cover
-                currentSong = updated
-                if hasRecordedCurrentSongInHistory {
-                    historyEntries = historyStore.recordSong(updated, station: selectedStream, existingEntries: historyEntries)
-                    cacheAlbumCoverForHistoryItem(updated.coverURL)
-                }
-            }
-        } else {
+        guard fetchAlbumCoverFromChilltrax, radioPlayer.isPlaying else { return }
+        let activeStation = selectedStation
+        let endpoints = stationAPIEndpoints[activeStation] ?? activeStation.defaultAPIEndpoints
+        if let cover = try? await client.fetchCurrentAlbumCoverURLString(
+            station: activeStation,
+            endpoints: endpoints
+        ) {
+            guard radioPlayer.isPlaying, selectedStation == activeStation else { return }
             var updated = currentSong
-            updated.coverURLString = nil
+            updated.coverURLString = cover
             currentSong = updated
+            cacheAlbumCoverForHistoryItem(updated.coverURL)
+            if hasRecordedCurrentSongInHistory {
+                historyEntries = historyStore.recordSong(updated, station: selectedStream, existingEntries: historyEntries)
+            }
         }
     }
 }
