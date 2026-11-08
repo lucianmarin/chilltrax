@@ -424,19 +424,70 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertEqual(radioDanzNotification.body, "Now playing on Radio Danz")
     }
 
-    func testAppIconVectorRenderingFromSVG() {
+    func testAppIconVectorRenderingFromSVG() throws {
         let musicNoteBox = AppIcon.parseSVGPath(AppIcon.musicNotePathD).boundingBoxOfPath
         XCTAssertFalse(musicNoteBox.isEmpty)
         XCTAssertEqual(musicNoteBox.minX, 45, accuracy: 0.01)
         XCTAssertEqual(musicNoteBox.maxX, 135, accuracy: 0.01)
 
-        let pngData = AppIcon.renderPNGData(pixelSize: 1024)
-        XCTAssertNotNil(pngData)
-        XCTAssertGreaterThan(pngData?.count ?? 0, 5_000)
+        XCTAssertEqual(AppIcon.appearance(for: NSAppearance(named: .aqua)), .light)
+        XCTAssertEqual(AppIcon.appearance(for: NSAppearance(named: .darkAqua)), .dark)
+        XCTAssertEqual(AppIcon.appearance(for: .light), .light)
+        XCTAssertEqual(AppIcon.appearance(for: .dark), .dark)
 
-        let placeholderData = AppIcon.renderPlaceholderPNGData(pixelSize: 240)
-        XCTAssertNotNil(placeholderData)
-        XCTAssertGreaterThan(placeholderData?.count ?? 0, 1_000)
+        let lightPNGData = AppIcon.renderPNGData(pixelSize: 1024, appearance: .light)
+        let darkPNGData = AppIcon.renderPNGData(pixelSize: 1024, appearance: .dark)
+        XCTAssertNotNil(lightPNGData)
+        XCTAssertNotNil(darkPNGData)
+        XCTAssertGreaterThan(lightPNGData?.count ?? 0, 5_000)
+        XCTAssertGreaterThan(darkPNGData?.count ?? 0, 5_000)
+        XCTAssertNotEqual(lightPNGData, darkPNGData)
+
+        let lightPlaceholderData = try XCTUnwrap(AppIcon.renderPlaceholderPNGData(pixelSize: 240, appearance: .light))
+        let darkPlaceholderData = try XCTUnwrap(AppIcon.renderPlaceholderPNGData(pixelSize: 240, appearance: .dark))
+        XCTAssertGreaterThan(lightPlaceholderData.count, 1_000)
+        XCTAssertGreaterThan(darkPlaceholderData.count, 1_000)
+
+        let lightRep = try XCTUnwrap(NSBitmapImageRep(data: lightPlaceholderData))
+        let darkRep = try XCTUnwrap(NSBitmapImageRep(data: darkPlaceholderData))
+
+        func pixelRGB(_ rep: NSBitmapImageRep, x: Int, y: Int) -> (Int, Int, Int) {
+            var px: [Int] = [0, 0, 0, 0]
+            rep.getPixel(&px, atX: x, y: y)
+            return (px[0], px[1], px[2])
+        }
+
+        // Left panel (x: 20, y: 20): white in light mode (`white.svg`), black in dark mode (`black.svg`)
+        XCTAssertEqual(pixelRGB(lightRep, x: 20, y: 20).0, 255)
+        XCTAssertEqual(pixelRGB(lightRep, x: 20, y: 20).1, 255)
+        XCTAssertEqual(pixelRGB(lightRep, x: 20, y: 20).2, 255)
+        XCTAssertEqual(pixelRGB(darkRep, x: 20, y: 20).0, 0)
+        XCTAssertEqual(pixelRGB(darkRep, x: 20, y: 20).1, 0)
+        XCTAssertEqual(pixelRGB(darkRep, x: 20, y: 20).2, 0)
+
+        // Music note head (x: 65, y: 144): black in light mode (`white.svg`), white in dark mode (`black.svg`)
+        XCTAssertEqual(pixelRGB(lightRep, x: 65, y: 144).0, 0)
+        XCTAssertEqual(pixelRGB(darkRep, x: 65, y: 144).0, 255)
+
+        // Right column squares (x: 210, y: 30 / 90 / 150 / 210)
+        XCTAssertEqual(pixelRGB(lightRep, x: 210, y: 30).0, 0xFF)
+        XCTAssertEqual(pixelRGB(lightRep, x: 210, y: 30).1, 0x05)
+        XCTAssertEqual(pixelRGB(lightRep, x: 210, y: 90).0, 0xAD)
+        XCTAssertEqual(pixelRGB(lightRep, x: 210, y: 150).0, 0x57)
+        XCTAssertEqual(pixelRGB(lightRep, x: 210, y: 210).0, 0x00)
+
+        XCTAssertEqual(pixelRGB(darkRep, x: 210, y: 30).0, 0xFA)
+        XCTAssertEqual(pixelRGB(darkRep, x: 210, y: 90).1, 0x52)
+        XCTAssertEqual(pixelRGB(darkRep, x: 210, y: 150).1, 0xA8)
+        XCTAssertEqual(pixelRGB(darkRep, x: 210, y: 210).0, 0xFF)
+
+        let tempIconBundle = FileManager.default.temporaryDirectory
+            .appendingPathComponent("AppIcon-\(UUID().uuidString).icon")
+        defer { try? FileManager.default.removeItem(at: tempIconBundle) }
+        try AppIcon.writeIconComposerBundle(to: tempIconBundle)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: tempIconBundle.appendingPathComponent("icon.json").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: tempIconBundle.appendingPathComponent("Assets/white.svg").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: tempIconBundle.appendingPathComponent("Assets/black.svg").path))
 
         XCTAssertEqual(ChilltraxTheme.accentRed, Color(red: 0xFA / 255.0, green: 0, blue: 0))
         XCTAssertEqual(ChilltraxTheme.visualizerBackground(for: .light), ChilltraxTheme.visualizerWhite)

@@ -13,6 +13,12 @@ build:
 
 app: build
 	@mkdir -p "$(MACOS_DIR)" "$(RESOURCES_DIR)"
+	@rm -rf /tmp/ChilltraxAppIcon.iconset /tmp/AppIcon.icon
+	@if xcrun -f actool >/dev/null 2>&1; then \
+		.build/release/$(APP_NAME) --export-icon-bundle /tmp/AppIcon.icon && \
+		xcrun actool /tmp/AppIcon.icon --compile "$(RESOURCES_DIR)" --platform macosx --minimum-deployment-target 14.0 --app-icon AppIcon --output-partial-info-plist /tmp/ChilltraxIconPartial.plist >/dev/null && \
+		rm -rf /tmp/AppIcon.icon /tmp/ChilltraxIconPartial.plist; \
+	fi
 	@.build/release/$(APP_NAME) --export-iconset /tmp/ChilltraxAppIcon.iconset && iconutil -c icns /tmp/ChilltraxAppIcon.iconset -o AppIcon.icns && rm -rf /tmp/ChilltraxAppIcon.iconset
 	@cp ".build/release/$(APP_NAME)" "$(MACOS_DIR)/$(APP_NAME)"
 	@if [ -f AppIcon.icns ]; then cp AppIcon.icns "$(RESOURCES_DIR)/AppIcon.icns"; fi
@@ -24,6 +30,8 @@ app: build
 		'    <key>CFBundleExecutable</key>' \
 		'    <string>$(APP_NAME)</string>' \
 		'    <key>CFBundleIconFile</key>' \
+		'    <string>AppIcon</string>' \
+		'    <key>CFBundleIconName</key>' \
 		'    <string>AppIcon</string>' \
 		'    <key>CFBundleIdentifier</key>' \
 		'    <string>com.lucianmarin.chilltrax</string>' \

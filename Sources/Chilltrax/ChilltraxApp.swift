@@ -4,6 +4,7 @@ import AppKit
 @MainActor
 public final class ChilltraxAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     public weak var appState: AppState?
+    private var appearanceObservation: NSKeyValueObservation?
 
     public override init() {
         super.init()
@@ -12,6 +13,24 @@ public final class ChilltraxAppDelegate: NSObject, NSApplicationDelegate, NSMenu
     public init(appState: AppState) {
         self.appState = appState
         super.init()
+    }
+
+    public func applicationDidFinishLaunching(_ notification: Notification) {
+        startObservingAppearance()
+    }
+
+    public func startObservingAppearance() {
+        updateApplicationIcon(for: NSApplication.shared.effectiveAppearance)
+        appearanceObservation = NSApplication.shared.observe(\.effectiveAppearance, options: [.new]) { [weak self] app, _ in
+            Task { @MainActor [weak self] in
+                self?.updateApplicationIcon(for: app.effectiveAppearance)
+            }
+        }
+    }
+
+    public func updateApplicationIcon(for nsAppearance: NSAppearance?) {
+        let iconAppearance = AppIcon.appearance(for: nsAppearance)
+        NSApplication.shared.applicationIconImage = AppIcon.generate(appearance: iconAppearance)
     }
 
     public func makeDockMenu() -> NSMenu? {
@@ -124,12 +143,18 @@ struct ChilltraxApp: App {
     @NSApplicationDelegateAdaptor(ChilltraxAppDelegate.self) private var appDelegate
     @StateObject private var appState: AppState
 
-    // Write iconset if invoked with --export-iconset <dir>
+    // Write iconset or Icon Composer bundle if invoked with --export-iconset <dir> or --export-icon-bundle <dir>
     static func exportIconsetIfRequested() -> Bool {
         let args = CommandLine.arguments
+        if let idx = args.firstIndex(of: "--export-icon-bundle"), idx + 1 < args.count {
+            let dir = URL(fileURLWithPath: args[idx + 1])
+            try? AppIcon.writeIconComposerBundle(to: dir)
+            return true
+        }
         if let idx = args.firstIndex(of: "--export-iconset"), idx + 1 < args.count {
             let dir = URL(fileURLWithPath: args[idx + 1])
-            try? AppIcon.writeIconset(to: dir)
+            let appearance: AppIcon.Appearance = args.contains("--dark") ? .dark : .light
+            try? AppIcon.writeIconset(to: dir, appearance: appearance)
             return true
         }
         return false
@@ -143,7 +168,7 @@ struct ChilltraxApp: App {
         _appState = StateObject(wrappedValue: state)
         appDelegate.appState = state
         NSApplication.shared.setActivationPolicy(.regular)
-        NSApplication.shared.applicationIconImage = AppIcon.generate()
+        appDelegate.startObservingAppearance()
     }
 
     var body: some Scene {
