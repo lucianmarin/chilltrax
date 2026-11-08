@@ -90,6 +90,34 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertEqual(url?.absoluteString, "https://streamssleu.chilltrax.com/stream?sid=1")
     }
 
+    func testDefaultStreamPrefersRedirectAndFallsBackToSecondBestOption() {
+        let chilltraxDefault = RadioStation.chilltrax.defaultStream
+        XCTAssertTrue(chilltraxDefault.urlString.localizedCaseInsensitiveContains("redirect"))
+        XCTAssertEqual(chilltraxDefault.urlString, "https://www.chilltrax.com/listen/?mode=redirect")
+
+        let radioDanzDefault = RadioStation.radioDanz.defaultStream
+        XCTAssertTrue(radioDanzDefault.urlString.localizedCaseInsensitiveContains("redirect"))
+        XCTAssertEqual(radioDanzDefault.urlString, "https://www.radiodanz.com/results/?mode=redirect")
+
+        let chilltraxWithoutRedirect = StationStream.defaultChilltraxStreams.filter {
+            !$0.urlString.localizedCaseInsensitiveContains("redirect")
+        }
+        let chilltraxFallback = StationStream.preferredDefaultStream(
+            for: .chilltrax,
+            in: chilltraxWithoutRedirect
+        )
+        XCTAssertEqual(chilltraxFallback.urlString, "https://streamssleu.chilltrax.com/stream?sid=1")
+
+        let radioDanzWithoutRedirect = StationStream.defaultRadioDanzStreams.filter {
+            !$0.urlString.localizedCaseInsensitiveContains("redirect")
+        }
+        let radioDanzFallback = StationStream.preferredDefaultStream(
+            for: .radioDanz,
+            in: radioDanzWithoutRedirect
+        )
+        XCTAssertEqual(radioDanzFallback.urlString, "https://streamssl.radiodanz.com/live")
+    }
+
     // MARK: - Metadata & Cover Art Decoding
 
     func testNowPlayingAndCoverJSONDecoding() throws {

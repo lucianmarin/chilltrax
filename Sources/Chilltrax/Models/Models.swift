@@ -88,10 +88,11 @@ public enum RadioStation: String, CaseIterable, Codable, Identifiable, Sendable 
     }
 
     public var defaultStream: StationStream {
-        switch self {
-        case .chilltrax: return .defaultStream
-        case .radioDanz: return .defaultRadioDanzStream
-        }
+        StationStream.preferredDefaultStream(for: self)
+    }
+
+    public func preferredDefaultStream(from streams: [StationStream]) -> StationStream {
+        StationStream.preferredDefaultStream(for: self, in: streams)
     }
 
     public var defaultStreams: [StationStream] {
@@ -317,6 +318,31 @@ public struct StationStream: Identifiable, Codable, Equatable, Hashable, Sendabl
 
     public static var defaultAllStreams: [StationStream] {
         defaultChilltraxStreams + defaultRadioDanzStreams
+    }
+
+    public static func defaultStreams(for station: RadioStation) -> [StationStream] {
+        switch station {
+        case .chilltrax: return defaultChilltraxStreams
+        case .radioDanz: return defaultRadioDanzStreams
+        }
+    }
+
+    public static func preferredDefaultStream(
+        for station: RadioStation,
+        in streams: [StationStream]? = nil
+    ) -> StationStream {
+        let stationStreams = (streams ?? defaultStreams(for: station)).filter { $0.station == station }
+        let candidates = stationStreams.isEmpty ? defaultStreams(for: station) : stationStreams
+        if let redirectStream = candidates.first(where: { $0.urlString.localizedCaseInsensitiveContains("redirect") }) {
+            return redirectStream
+        }
+        if let secondBest = candidates.first(where: { !$0.urlString.localizedCaseInsensitiveContains("redirect") }) {
+            return secondBest
+        }
+        let fallbackCandidates = defaultStreams(for: station).filter {
+            !$0.urlString.localizedCaseInsensitiveContains("redirect")
+        }
+        return fallbackCandidates.first ?? defaultStreams(for: station).first!
     }
 }
 

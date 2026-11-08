@@ -357,7 +357,7 @@ public final class AppState: ObservableObject {
         } else {
             let station = savedStation ?? .chilltrax
             self.selectedStation = station
-            self.selectedStream = station.defaultStream
+            self.selectedStream = StationStream.preferredDefaultStream(for: station, in: initialDiscovered)
         }
 
         if let lastActiveRaw = defaults.string(forKey: DefaultsKeys.lastActiveVisualizerMode),
@@ -443,8 +443,7 @@ public final class AppState: ObservableObject {
     public func selectStation(_ station: RadioStation, autoPlayIfCurrentlyPlaying: Bool = true) {
         guard selectedStation != station || selectedStream.station != station else { return }
         selectedStation = station
-        let stationStreams = discoveredStreams.filter { $0.station == station }
-        let targetStream = stationStreams.first ?? station.defaultStream
+        let targetStream = StationStream.preferredDefaultStream(for: station, in: discoveredStreams)
         if radioPlayer.isPlaying {
             currentSong = .placeholder
             pendingHistoryTask?.cancel()
@@ -526,7 +525,7 @@ public final class AppState: ObservableObject {
     public func removeCustomStream(_ stream: StationStream) {
         customStreams.removeAll { $0.id == stream.id }
         if selectedStream.id == stream.id {
-            selectStream(discoveredStreams.first ?? .defaultStream)
+            selectStream(StationStream.preferredDefaultStream(for: selectedStation, in: discoveredStreams))
         }
     }
 
@@ -625,7 +624,7 @@ public final class AppState: ObservableObject {
             if let updatedMatch = combinedStreams.first(where: { $0.urlString.caseInsensitiveCompare(selectedStream.urlString) == .orderedSame }) {
                 selectedStream = updatedMatch
             } else if !combinedStreams.contains(where: { $0.station == selectedStation && $0.id == selectedStream.id }) {
-                selectedStream = streamsForSelectedStation.first ?? selectedStation.defaultStream
+                selectedStream = StationStream.preferredDefaultStream(for: selectedStation, in: streamsForSelectedStation)
             }
         } catch {
             if discoveredStreams.isEmpty {
