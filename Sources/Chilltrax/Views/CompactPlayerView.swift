@@ -4,7 +4,6 @@ public struct CompactPlayerView: View {
     @ObservedObject public var appState: AppState
     @Environment(\.openSettings) private var openSettings
     @Environment(\.colorScheme) private var colorScheme
-    @State private var isHoveringArtwork: Bool = false
     @FocusState private var isSearchFieldFocused: Bool
 
     public init(appState: AppState) {
@@ -26,12 +25,6 @@ public struct CompactPlayerView: View {
                             .font(.system(size: 16, weight: .bold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                appState.copyCurrentSongToClipboard()
-                            }
-                            .help(songCopyHelpText)
 
                         songInfoSeparator
 
@@ -39,12 +32,6 @@ public struct CompactPlayerView: View {
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(ChilltraxTheme.accentRed)
                             .lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                appState.copyCurrentSongToClipboard()
-                            }
-                            .help(songCopyHelpText)
 
                         songInfoSeparator
 
@@ -233,67 +220,33 @@ public struct CompactPlayerView: View {
             .frame(height: 1)
     }
 
-    private var appleMusicURL: URL? {
-        appState.currentSongAppleMusicURL
-    }
-
-    private var songCopyHelpText: String {
-        guard let formatted = appState.currentSongFormattedTitle else {
-            return ""
-        }
-        return "Copy \"\(formatted)\" to Clipboard"
-    }
-
     @ViewBuilder
     private var albumArtworkView: some View {
-        Button(action: {
-            if isSongPlaying, let url = appleMusicURL {
-                NSWorkspace.shared.open(url)
-            }
-        }) {
-            ZStack {
-                if isSongPlaying, let coverURL = appState.currentSong.coverURL {
-                    CachedCurrentSongCoverView(
-                        url: coverURL,
-                        allowFetchingNewCover: appState.fetchAlbumCoverFromChilltrax,
-                        coverCache: appState.coverCache
-                    ) {
-                        defaultStationArtwork
-                    }
-                } else {
+        ZStack {
+            if isSongPlaying, let coverURL = appState.currentSong.coverURL {
+                CachedCurrentSongCoverView(
+                    url: coverURL,
+                    allowFetchingNewCover: appState.fetchAlbumCoverFromChilltrax,
+                    coverCache: appState.coverCache
+                ) {
                     defaultStationArtwork
                 }
-
-                if isSongPlaying && isHoveringArtwork {
-                    ZStack {
-                        Color.black.opacity(0.55)
-                        Image(systemName: "apple.logo")
-                            .font(.system(size: 24, weight: .semibold))
-                            .foregroundStyle(Color.white)
-                    }
-                    .transition(.opacity)
-                }
-            }
-            .frame(width: 68, height: 68)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.14), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
-                isHoveringArtwork = hovering && isSongPlaying
+            } else {
+                defaultStationArtwork
             }
         }
-        .help(isSongPlaying ? "Open on Apple Music" : "")
+        .frame(width: 68, height: 68)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.14), lineWidth: 1)
+        )
     }
 
     private var defaultStationArtwork: some View {
         ZStack {
             ChilltraxTheme.visualizerBackground(for: colorScheme)
-            Image(systemName: "apple.logo")
+            Image(systemName: "music.note")
                 .font(.system(size: 28, weight: .semibold))
                 .foregroundStyle(ChilltraxTheme.visualizerContrastColor(for: colorScheme))
         }

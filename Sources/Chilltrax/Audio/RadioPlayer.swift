@@ -7,10 +7,10 @@ import UserNotifications
 public final class RadioPlayer: NSObject, ObservableObject {
     public enum PlaybackStatus: String, Equatable, Sendable {
         case idle = "Ready"
-        case buffering = "Connecting…"
+        case buffering = "Loading"
         case playing = "Live"
         case paused = "Paused"
-        case error = "Stream Error"
+        case error = "Error"
 
         public func toolbarLabel(for station: RadioStation) -> String {
             switch self {
