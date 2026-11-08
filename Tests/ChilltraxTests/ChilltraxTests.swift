@@ -397,12 +397,10 @@ final class ChilltraxTests: XCTestCase {
     }
 
     func testAppIconVectorRenderingFromSVG() {
-        let centerDotBox = AppIcon.parseSVGPath(AppIcon.centerDotPathD).boundingBoxOfPath
-        let innerWaveBox = AppIcon.parseSVGPath(AppIcon.innerWavePathD).boundingBoxOfPath
-        let outerWaveBox = AppIcon.parseSVGPath(AppIcon.outerWavePathD).boundingBoxOfPath
-        XCTAssertFalse(centerDotBox.isEmpty)
-        XCTAssertFalse(innerWaveBox.isEmpty)
-        XCTAssertFalse(outerWaveBox.isEmpty)
+        let musicNoteBox = AppIcon.parseSVGPath(AppIcon.musicNotePathD).boundingBoxOfPath
+        XCTAssertFalse(musicNoteBox.isEmpty)
+        XCTAssertEqual(musicNoteBox.minX, 45, accuracy: 0.01)
+        XCTAssertEqual(musicNoteBox.maxX, 135, accuracy: 0.01)
 
         let pngData = AppIcon.renderPNGData(pixelSize: 1024)
         XCTAssertNotNil(pngData)
