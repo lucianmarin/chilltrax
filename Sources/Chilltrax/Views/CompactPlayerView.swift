@@ -195,21 +195,21 @@ public struct CompactPlayerView: View {
 
     private var displayedSongTitle: String {
         guard isSongPlaying, !appState.currentSong.title.isEmpty else {
-            return "Title"
+            return ""
         }
         return appState.currentSong.title
     }
 
     private var displayedSongArtist: String {
         guard isSongPlaying, !appState.currentSong.artist.isEmpty else {
-            return "Artist"
+            return ""
         }
         return appState.currentSong.artist
     }
 
     private var displayedSongAlbum: String {
         guard isSongPlaying, !appState.currentSong.albumOrMix.isEmpty else {
-            return "Album"
+            return ""
         }
         return appState.currentSong.albumOrMix
     }
@@ -258,7 +258,7 @@ public struct CompactPlayerView: View {
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
 
-            TextField("Search played songs by title, artist, album…", text: $appState.historySearchQuery)
+            TextField("Search title, artist, album, station…", text: $appState.historySearchQuery)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12.5))
                 .focused($isSearchFieldFocused)

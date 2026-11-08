@@ -729,9 +729,9 @@ final class ChilltraxTests: XCTestCase {
         defaultState.historyCommitDelaySeconds = -5
         XCTAssertEqual(defaultState.historyCommitDelaySeconds, 0)
         XCTAssertEqual(defaultState.minimumHistoryPlayDuration, 0.0)
-        XCTAssertEqual(defaultState.currentSong.title, "Title")
-        XCTAssertEqual(defaultState.currentSong.artist, "Artist")
-        XCTAssertEqual(defaultState.currentSong.albumOrMix, "Album")
+        XCTAssertEqual(defaultState.currentSong.title, "")
+        XCTAssertEqual(defaultState.currentSong.artist, "")
+        XCTAssertEqual(defaultState.currentSong.albumOrMix, "")
         XCTAssertFalse(defaultState.currentSong.isMeaningfulTrack)
 
         // Use a 100ms threshold in test to verify timer scheduling, skipping, and pause/resume accumulation

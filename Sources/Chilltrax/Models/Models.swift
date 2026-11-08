@@ -442,9 +442,9 @@ public struct SongMetadata: Equatable, Codable, Sendable {
     }
 
     public static let placeholder = SongMetadata(
-        artist: "Artist",
-        title: "Title",
-        albumOrMix: "Album"
+        artist: "",
+        title: "",
+        albumOrMix: ""
     )
 }
 
