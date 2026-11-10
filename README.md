@@ -27,7 +27,7 @@ Chilltrax is a native macOS radio player built with SwiftUI and AVFoundation for
 
 ## Implementation Tracker
 
-- [x] Project scaffolding (`Package.swift`, `Makefile`, `white.svg`, `black.svg`, `AppIcon.icns`)
+- [x] Project scaffolding (`Package.swift`, `Makefile`, `white.svg`, `black.svg`)
 - [x] Models (`StationStream`, `SongMetadata`, `SongHistoryEntry`, `VisualizerMode`)
 - [x] Compressed text file history persistence (`CompressedHistoryStore` using `LZFSE`-compressed TSV text)
 - [x] Chilltrax website stream discovery & live metadata/cover client (`ChilltraxClient`)
