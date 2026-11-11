@@ -39,42 +39,42 @@ public enum VisualizerMode: String, CaseIterable, Codable, Identifiable, Sendabl
 }
 
 public enum RadioStation: String, CaseIterable, Codable, Identifiable, Sendable {
-    case chilltrax = "chilltrax"
+    case mactrax = "mactrax"
     case radioDanz = "radiodanz"
 
     public var id: String { rawValue }
 
     public var title: String {
         switch self {
-        case .chilltrax: return "Chilltrax"
+        case .mactrax: return "Mactrax"
         case .radioDanz: return "Radio Danz"
         }
     }
 
     public var badgeLabel: String {
         switch self {
-        case .chilltrax: return "TRAX"
+        case .mactrax: return "TRAX"
         case .radioDanz: return "DANZ"
         }
     }
 
     public var nextStation: RadioStation {
         switch self {
-        case .chilltrax: return .radioDanz
-        case .radioDanz: return .chilltrax
+        case .mactrax: return .radioDanz
+        case .radioDanz: return .mactrax
         }
     }
 
     public var domain: String {
         switch self {
-        case .chilltrax: return "chilltrax.com"
+        case .mactrax: return "mactrax.com"
         case .radioDanz: return "radiodanz.com"
         }
     }
 
     public var websiteURL: URL {
         switch self {
-        case .chilltrax: return URL(string: "https://www.chilltrax.com/")!
+        case .mactrax: return URL(string: "https://www.mactrax.com/")!
         case .radioDanz: return URL(string: "https://www.radiodanz.com/")!
         }
     }
@@ -97,7 +97,7 @@ public enum RadioStation: String, CaseIterable, Codable, Identifiable, Sendable 
 
     public var defaultStreams: [StationStream] {
         switch self {
-        case .chilltrax: return StationStream.defaultChilltraxStreams
+        case .mactrax: return StationStream.defaultMactraxStreams
         case .radioDanz: return StationStream.defaultRadioDanzStreams
         }
     }
@@ -113,7 +113,7 @@ public enum RadioStation: String, CaseIterable, Codable, Identifiable, Sendable 
             || lowerURL.contains(":8030") {
             return .radioDanz
         }
-        return .chilltrax
+        return .mactrax
     }
 }
 
@@ -142,7 +142,7 @@ public struct StationStream: Identifiable, Codable, Equatable, Hashable, Sendabl
     public var name: String
     public var urlString: String
     public var formatDetails: String
-    public var isChilltraxOfficial: Bool
+    public var isMactraxOfficial: Bool
     public var station: RadioStation
 
     private enum CodingKeys: String, CodingKey {
@@ -150,7 +150,7 @@ public struct StationStream: Identifiable, Codable, Equatable, Hashable, Sendabl
         case name
         case urlString
         case formatDetails
-        case isChilltraxOfficial
+        case isMactraxOfficial
         case station
     }
 
@@ -159,14 +159,14 @@ public struct StationStream: Identifiable, Codable, Equatable, Hashable, Sendabl
         name: String,
         urlString: String,
         formatDetails: String = "",
-        isChilltraxOfficial: Bool = true,
+        isMactraxOfficial: Bool = true,
         station: RadioStation? = nil
     ) {
         self.id = id ?? urlString
         self.name = name
         self.urlString = urlString
         self.formatDetails = formatDetails
-        self.isChilltraxOfficial = isChilltraxOfficial
+        self.isMactraxOfficial = isMactraxOfficial
         self.station = station ?? RadioStation.infer(stationName: name, stationURLString: urlString)
     }
 
@@ -176,7 +176,7 @@ public struct StationStream: Identifiable, Codable, Equatable, Hashable, Sendabl
         let id = try container.decodeIfPresent(String.self, forKey: .id) ?? urlString
         let name = try container.decode(String.self, forKey: .name)
         let formatDetails = try container.decodeIfPresent(String.self, forKey: .formatDetails) ?? ""
-        let isChilltraxOfficial = try container.decodeIfPresent(Bool.self, forKey: .isChilltraxOfficial) ?? true
+        let isMactraxOfficial = try container.decodeIfPresent(Bool.self, forKey: .isMactraxOfficial) ?? true
         let station = try container.decodeIfPresent(RadioStation.self, forKey: .station)
             ?? RadioStation.infer(stationName: name, stationURLString: urlString)
 
@@ -185,7 +185,7 @@ public struct StationStream: Identifiable, Codable, Equatable, Hashable, Sendabl
             name: name,
             urlString: urlString,
             formatDetails: formatDetails,
-            isChilltraxOfficial: isChilltraxOfficial,
+            isMactraxOfficial: isMactraxOfficial,
             station: station
         )
     }
@@ -195,12 +195,12 @@ public struct StationStream: Identifiable, Codable, Equatable, Hashable, Sendabl
     }
 
     public static let defaultStream = StationStream(
-        id: "https://www.chilltrax.com/listen/?mode=redirect",
-        name: "Chilltrax — 128Kbps MP3 (Firewall Friendly HTTPS)",
-        urlString: "https://www.chilltrax.com/listen/?mode=redirect",
+        id: "https://www.mactrax.com/listen/?mode=redirect",
+        name: "Mactrax — 128Kbps MP3 (Firewall Friendly HTTPS)",
+        urlString: "https://www.mactrax.com/listen/?mode=redirect",
         formatDetails: "128Kbps MP3 • HTTPS Direct",
-        isChilltraxOfficial: true,
-        station: .chilltrax
+        isMactraxOfficial: true,
+        station: .mactrax
     )
 
     public static let defaultRadioDanzStream = StationStream(
@@ -208,59 +208,59 @@ public struct StationStream: Identifiable, Codable, Equatable, Hashable, Sendabl
         name: "Radio Danz — 128Kbps MP3 (Firewall Friendly HTTPS)",
         urlString: "https://www.radiodanz.com/results/?mode=redirect",
         formatDetails: "128Kbps MP3 • HTTPS Direct",
-        isChilltraxOfficial: true,
+        isMactraxOfficial: true,
         station: .radioDanz
     )
 
-    public static let defaultChilltraxStreams: [StationStream] = [
+    public static let defaultMactraxStreams: [StationStream] = [
         defaultStream,
         StationStream(
-            id: "https://streamssleu.chilltrax.com/stream?sid=1",
-            name: "Chilltrax — EU SSL Direct Stream (128Kbps MP3)",
-            urlString: "https://streamssleu.chilltrax.com/stream?sid=1",
+            id: "https://streamssleu.mactrax.com/stream?sid=1",
+            name: "Mactrax — EU SSL Direct Stream (128Kbps MP3)",
+            urlString: "https://streamssleu.mactrax.com/stream?sid=1",
             formatDetails: "128Kbps MP3 • Shoutcast SSL",
-            isChilltraxOfficial: true,
-            station: .chilltrax
+            isMactraxOfficial: true,
+            station: .mactrax
         ),
         StationStream(
-            id: "https://www.chilltrax.com/listen",
-            name: "Chilltrax — High Quality 128Kbps MP3 (PLS)",
-            urlString: "https://www.chilltrax.com/listen",
+            id: "https://www.mactrax.com/listen",
+            name: "Mactrax — High Quality 128Kbps MP3 (PLS)",
+            urlString: "https://www.mactrax.com/listen",
             formatDetails: "128Kbps MP3 • Playlist",
-            isChilltraxOfficial: true,
-            station: .chilltrax
+            isMactraxOfficial: true,
+            station: .mactrax
         ),
         StationStream(
             id: "http://streams.electronicmusicradiogroup.org:9050",
-            name: "Chilltrax — Highest (HD) Quality 128Kbps AAC+",
+            name: "Mactrax — Highest (HD) Quality 128Kbps AAC+",
             urlString: "http://streams.electronicmusicradiogroup.org:9050",
             formatDetails: "128Kbps AAC+",
-            isChilltraxOfficial: true,
-            station: .chilltrax
+            isMactraxOfficial: true,
+            station: .mactrax
         ),
         StationStream(
             id: "http://streams.electronicmusicradiogroup.org:9000",
-            name: "Chilltrax — High Quality 128Kbps MP3",
+            name: "Mactrax — High Quality 128Kbps MP3",
             urlString: "http://streams.electronicmusicradiogroup.org:9000",
             formatDetails: "128Kbps MP3",
-            isChilltraxOfficial: true,
-            station: .chilltrax
+            isMactraxOfficial: true,
+            station: .mactrax
         ),
         StationStream(
             id: "http://streams.electronicmusicradiogroup.org:9020",
-            name: "Chilltrax — High Quality 80Kbps AAC+",
+            name: "Mactrax — High Quality 80Kbps AAC+",
             urlString: "http://streams.electronicmusicradiogroup.org:9020",
             formatDetails: "80Kbps AAC+",
-            isChilltraxOfficial: true,
-            station: .chilltrax
+            isMactraxOfficial: true,
+            station: .mactrax
         ),
         StationStream(
             id: "http://streams.electronicmusicradiogroup.org:9010",
-            name: "Chilltrax — High Quality 64Kbps AAC+",
+            name: "Mactrax — High Quality 64Kbps AAC+",
             urlString: "http://streams.electronicmusicradiogroup.org:9010",
             formatDetails: "64Kbps AAC+",
-            isChilltraxOfficial: true,
-            station: .chilltrax
+            isMactraxOfficial: true,
+            station: .mactrax
         )
     ]
 
@@ -271,7 +271,7 @@ public struct StationStream: Identifiable, Codable, Equatable, Hashable, Sendabl
             name: "Radio Danz — Direct SSL Stream (128Kbps MP3)",
             urlString: "https://streamssl.radiodanz.com/live",
             formatDetails: "128Kbps MP3 • Direct SSL",
-            isChilltraxOfficial: true,
+            isMactraxOfficial: true,
             station: .radioDanz
         ),
         StationStream(
@@ -279,7 +279,7 @@ public struct StationStream: Identifiable, Codable, Equatable, Hashable, Sendabl
             name: "Radio Danz — High Quality 128Kbps MP3 (firewall friendly)",
             urlString: "http://streamssl.radiodanz.com/listen.pls?sid=1",
             formatDetails: "128Kbps MP3 • Playlist",
-            isChilltraxOfficial: true,
+            isMactraxOfficial: true,
             station: .radioDanz
         ),
         StationStream(
@@ -287,7 +287,7 @@ public struct StationStream: Identifiable, Codable, Equatable, Hashable, Sendabl
             name: "Radio Danz — Highest (HD) Quality 128Kbps AAC+",
             urlString: "http://streams.electronicmusicradiogroup.org:8030/listen.pls",
             formatDetails: "128Kbps AAC+",
-            isChilltraxOfficial: true,
+            isMactraxOfficial: true,
             station: .radioDanz
         ),
         StationStream(
@@ -295,7 +295,7 @@ public struct StationStream: Identifiable, Codable, Equatable, Hashable, Sendabl
             name: "Radio Danz — High Quality 128Kbps MP3",
             urlString: "http://streams.electronicmusicradiogroup.org:8000/listen.pls",
             formatDetails: "128Kbps MP3",
-            isChilltraxOfficial: true,
+            isMactraxOfficial: true,
             station: .radioDanz
         ),
         StationStream(
@@ -303,7 +303,7 @@ public struct StationStream: Identifiable, Codable, Equatable, Hashable, Sendabl
             name: "Radio Danz — High Quality 80Kbps AAC+",
             urlString: "http://streams.electronicmusicradiogroup.org:8020/listen.pls",
             formatDetails: "80Kbps AAC+",
-            isChilltraxOfficial: true,
+            isMactraxOfficial: true,
             station: .radioDanz
         ),
         StationStream(
@@ -311,18 +311,18 @@ public struct StationStream: Identifiable, Codable, Equatable, Hashable, Sendabl
             name: "Radio Danz — High Quality 64Kbps AAC+",
             urlString: "http://streams.electronicmusicradiogroup.org:8010/listen.pls",
             formatDetails: "64Kbps AAC+",
-            isChilltraxOfficial: true,
+            isMactraxOfficial: true,
             station: .radioDanz
         )
     ]
 
     public static var defaultAllStreams: [StationStream] {
-        defaultChilltraxStreams + defaultRadioDanzStreams
+        defaultMactraxStreams + defaultRadioDanzStreams
     }
 
     public static func defaultStreams(for station: RadioStation) -> [StationStream] {
         switch station {
-        case .chilltrax: return defaultChilltraxStreams
+        case .mactrax: return defaultMactraxStreams
         case .radioDanz: return defaultRadioDanzStreams
         }
     }
@@ -404,7 +404,7 @@ public struct SongMetadata: Equatable, Codable, Sendable {
         let lowerArtist = artist.lowercased()
         if title.isEmpty && artist.isEmpty { return false }
         if lowerTitle == "title" && (lowerArtist.isEmpty || lowerArtist == "artist") { return false }
-        if lowerTitle == "chilltrax" && lowerArtist.isEmpty { return false }
+        if lowerTitle == "mactrax" && lowerArtist.isEmpty { return false }
         if lowerTitle == "radio danz" && lowerArtist.isEmpty { return false }
         if lowerTitle.contains("the world's chillout channel") { return false }
         if lowerTitle.contains("the world's pure dance channel") { return false }
@@ -417,7 +417,7 @@ public struct SongMetadata: Equatable, Codable, Sendable {
             return URL(string: raw)
         }
         let trimmed = raw.hasPrefix("/") ? String(raw.dropFirst()) : raw
-        return URL(string: "https://www.chilltrax.com/\(trimmed)")
+        return URL(string: "https://www.mactrax.com/\(trimmed)")
     }
 
     public var buyURL: URL? {
@@ -469,7 +469,7 @@ public struct SongHistoryEntry: Identifiable, Codable, Equatable, Sendable {
         year: String = "",
         coverURLString: String = "",
         buyURLString: String = "",
-        stationName: String = "Chilltrax",
+        stationName: String = "Mactrax",
         stationURLString: String = StationStream.defaultStream.urlString
     ) {
         self.id = id
@@ -531,9 +531,9 @@ public struct SongHistoryEntry: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
-// MARK: - Chilltrax JSON API Models
+// MARK: - Mactrax JSON API Models
 
-public struct ChilltraxNowPlayingResponse: Codable, Equatable, Sendable {
+public struct MactraxNowPlayingResponse: Codable, Equatable, Sendable {
     public let artist: String?
     public let title: String?
     public let mix: String?
@@ -567,11 +567,11 @@ public struct ChilltraxNowPlayingResponse: Codable, Equatable, Sendable {
     }
 }
 
-public struct ChilltraxCoverResponse: Codable, Equatable, Sendable {
+public struct MactraxCoverResponse: Codable, Equatable, Sendable {
     public let cover: String?
 }
 
-public struct ChilltraxLastTenItem: Codable, Equatable, Sendable {
+public struct MactraxLastTenItem: Codable, Equatable, Sendable {
     public let artist: String?
     public let title: String?
     public let mix: String?

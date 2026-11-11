@@ -32,7 +32,7 @@ public struct SettingsView: View {
         .frame(width: 540)
         .fixedSize(horizontal: false, vertical: true)
         .padding(12)
-        .tint(ChilltraxTheme.accentRed)
+        .tint(MactraxTheme.accentRed)
     }
 
     private var broadcastSettingsTab: some View {
@@ -84,19 +84,19 @@ public struct SettingsView: View {
                 }
             }
 
-            Section("Find Broadcasts from chilltrax.com & radiodanz.com") {
+            Section("Find Broadcasts from mactrax.com & radiodanz.com") {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Discover Official Broadcasts & API URLs")
                             .font(.subheadline.weight(.medium))
-                        Text("Scans chilltrax.com and radiodanz.com for live broadcast stream links and API URL changes.")
+                        Text("Scans mactrax.com and radiodanz.com for live broadcast stream links and API URL changes.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
                     Button(action: {
                         Task {
-                            await appState.discoverBroadcastsFromChilltraxWebsite()
+                            await appState.discoverBroadcastsFromMactraxWebsite()
                         }
                     }) {
                         HStack(spacing: 6) {
@@ -115,7 +115,7 @@ public struct SettingsView: View {
                 if let status = appState.discoveryStatusMessage {
                     Text(status)
                         .font(.caption)
-                        .foregroundStyle(ChilltraxTheme.accentRed)
+                        .foregroundStyle(MactraxTheme.accentRed)
                 }
             }
         }
@@ -128,7 +128,7 @@ public struct SettingsView: View {
             Section("Metadata, Artwork & Notifications") {
                 Toggle(
                     "Display and fetch album covers",
-                    isOn: $appState.fetchAlbumCoverFromChilltrax
+                    isOn: $appState.fetchAlbumCoverFromMactrax
                 )
 
                 Toggle(

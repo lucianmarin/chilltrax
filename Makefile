@@ -1,5 +1,5 @@
 APP_NAME = Chilltrax
-EXECUTABLE_NAME = Chilltrax
+EXECUTABLE_NAME = Mactrax
 BUNDLE_DIR = $(APP_NAME).app
 CONTENTS_DIR = $(BUNDLE_DIR)/Contents
 MACOS_DIR = $(CONTENTS_DIR)/MacOS
@@ -15,13 +15,13 @@ build:
 app: build
 	@rm -rf "$(RESOURCES_DIR)"
 	@mkdir -p "$(MACOS_DIR)" "$(RESOURCES_DIR)"
-	@rm -rf /tmp/ChilltraxAppIcon.iconset /tmp/AppIcon.icon
+	@rm -rf /tmp/MactraxAppIcon.iconset /tmp/AppIcon.icon
 	@if xcrun -f actool >/dev/null 2>&1; then \
 		.build/release/$(EXECUTABLE_NAME) --export-icon-bundle /tmp/AppIcon.icon && \
-		xcrun actool /tmp/AppIcon.icon --compile "$(RESOURCES_DIR)" --platform macosx --minimum-deployment-target 14.0 --app-icon AppIcon --output-partial-info-plist /tmp/ChilltraxIconPartial.plist >/dev/null && \
-		rm -rf /tmp/AppIcon.icon /tmp/ChilltraxIconPartial.plist; \
+		xcrun actool /tmp/AppIcon.icon --compile "$(RESOURCES_DIR)" --platform macosx --minimum-deployment-target 14.0 --app-icon AppIcon --output-partial-info-plist /tmp/MactraxIconPartial.plist >/dev/null && \
+		rm -rf /tmp/AppIcon.icon /tmp/MactraxIconPartial.plist; \
 	fi
-	@.build/release/$(EXECUTABLE_NAME) --export-iconset /tmp/ChilltraxAppIcon.iconset && iconutil -c icns /tmp/ChilltraxAppIcon.iconset -o "$(RESOURCES_DIR)/AppIcon.icns" && rm -rf /tmp/ChilltraxAppIcon.iconset
+	@.build/release/$(EXECUTABLE_NAME) --export-iconset /tmp/MactraxAppIcon.iconset && iconutil -c icns /tmp/MactraxAppIcon.iconset -o "$(RESOURCES_DIR)/AppIcon.icns" && rm -rf /tmp/MactraxAppIcon.iconset
 	@cp ".build/release/$(EXECUTABLE_NAME)" "$(MACOS_DIR)/$(APP_NAME)"
 	@printf '%s\n' \
 		'<?xml version="1.0" encoding="UTF-8"?>' \
@@ -35,7 +35,7 @@ app: build
 		'    <key>CFBundleIconName</key>' \
 		'    <string>AppIcon</string>' \
 		'    <key>CFBundleIdentifier</key>' \
-		'    <string>com.lucianmarin.chilltrax</string>' \
+		'    <string>com.lucianmarin.mactrax</string>' \
 		'    <key>CFBundleName</key>' \
 		'    <string>$(APP_NAME)</string>' \
 		'    <key>CFBundleDisplayName</key>' \

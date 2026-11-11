@@ -4,7 +4,7 @@ import Compression
 /// Persists played song history locally across app restarts in an efficiently compressed text file
 /// (`history.tsv.lzfse`) using UTF-8 tab-separated values compressed via Apple's native LZFSE compression (matching `../monochrome`).
 public final class CompressedHistoryStore {
-    public static let fileHeader = "#CHILLTRAX_HISTORY_V1\tid\tplayedAtISO8601\tartist\ttitle\talbumOrMix\tyear\tcoverURL\tbuyURL\tstationName\tstationURL"
+    public static let fileHeader = "#MACTRAX_HISTORY_V1\tid\tplayedAtISO8601\tartist\ttitle\talbumOrMix\tyear\tcoverURL\tbuyURL\tstationName\tstationURL"
 
     public let fileURL: URL
     private let isoFormatter: ISO8601DateFormatter
@@ -15,7 +15,7 @@ public final class CompressedHistoryStore {
         } else {
             let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
                 ?? FileManager.default.temporaryDirectory
-            let directory = appSupport.appendingPathComponent("Chilltrax", isDirectory: true)
+            let directory = appSupport.appendingPathComponent("Mactrax", isDirectory: true)
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let lzfseURL = directory.appendingPathComponent("history.tsv.lzfse")
             let legacyZlibURL = directory.appendingPathComponent("history.tsv.zlib")
@@ -180,7 +180,7 @@ public final class CompressedHistoryStore {
             let year = columns.count > 5 ? Self.unescapeField(columns[5]) : ""
             let coverURLString = columns.count > 6 ? Self.unescapeField(columns[6]) : ""
             let buyURLString = columns.count > 7 ? Self.unescapeField(columns[7]) : ""
-            let stationName = columns.count > 8 ? Self.unescapeField(columns[8]) : "Chilltrax"
+            let stationName = columns.count > 8 ? Self.unescapeField(columns[8]) : "Mactrax"
             let stationURLString = columns.count > 9 ? Self.unescapeField(columns[9]) : StationStream.defaultStream.urlString
 
             entries.append(

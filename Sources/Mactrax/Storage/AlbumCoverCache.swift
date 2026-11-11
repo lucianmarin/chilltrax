@@ -8,9 +8,9 @@ public final class AlbumCoverCache: @unchecked Sendable {
     private let memoryCache = NSCache<NSString, NSImage>()
     private var inFlightTasks: [String: Task<NSImage?, Never>] = [:]
     private let lock = NSLock()
-    private let client: ChilltraxClient
+    private let client: MactraxClient
 
-    public init(directoryURL: URL? = nil, client: ChilltraxClient = ChilltraxClient()) {
+    public init(directoryURL: URL? = nil, client: MactraxClient = MactraxClient()) {
         self.client = client
         if let directoryURL {
             self.directoryURL = directoryURL
@@ -18,7 +18,7 @@ public final class AlbumCoverCache: @unchecked Sendable {
             let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
                 ?? FileManager.default.temporaryDirectory
             self.directoryURL = appSupport
-                .appendingPathComponent("Chilltrax", isDirectory: true)
+                .appendingPathComponent("Mactrax", isDirectory: true)
                 .appendingPathComponent("Covers", isDirectory: true)
         }
         try? FileManager.default.createDirectory(at: self.directoryURL, withIntermediateDirectories: true)

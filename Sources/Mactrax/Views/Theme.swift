@@ -1,9 +1,9 @@
 import SwiftUI
 import AppKit
 
-public enum ChilltraxTheme {
+public enum MactraxTheme {
     /// Brand red accent color average of `white.svg` and `black.svg` (`#FF0000`)
-    public static let accentRed = Color(red: 0xFF / 255.0, green: 0x00 / 255.0, blue: 0x00 / 255.0)
+    public static let accentRed = Color(red: 0xFA / 255.0, green: 0x00 / 255.0, blue: 0x00 / 255.0)
     public static let visualizerBlack = Color.black
     public static let visualizerWhite = Color.white
     /// Neutral `#808080` gray for the third waveform and third spectrum bar color
@@ -172,8 +172,8 @@ public struct WindowAccessor: NSViewRepresentable {
     @MainActor
     public final class Coordinator {
         private enum DefaultsKeys {
-            static let windowOriginX = "chilltrax.windowOriginX"
-            static let windowTopY = "chilltrax.windowTopY"
+            static let windowOriginX = "mactrax.windowOriginX"
+            static let windowTopY = "mactrax.windowTopY"
         }
 
         let defaults: UserDefaults
@@ -277,7 +277,7 @@ public struct WindowAccessor: NSViewRepresentable {
         @MainActor
         func syncSize(
             isExpanded: Bool,
-            resultCount: Int = ChilltraxTheme.maxVisibleHistoryRows,
+            resultCount: Int = MactraxTheme.maxVisibleHistoryRows,
             showSearchBar: Bool = false,
             showVisualizer: Bool = true,
             on window: NSWindow
@@ -288,14 +288,14 @@ public struct WindowAccessor: NSViewRepresentable {
             currentShowVisualizer = showVisualizer
 
             let toolbarInset = max(0, window.frame.height - window.contentLayoutRect.height)
-            let targetContentHeight = ChilltraxTheme.contentHeight(
+            let targetContentHeight = MactraxTheme.contentHeight(
                 isExpanded: isExpanded,
                 resultCount: resultCount,
                 showSearchBar: showSearchBar,
                 showVisualizer: showVisualizer
             )
             let targetWindowHeight = targetContentHeight + toolbarInset
-            let fixedWidth = ChilltraxTheme.compactWidth
+            let fixedWidth = MactraxTheme.compactWidth
             let fixedSize = NSSize(width: fixedWidth, height: targetWindowHeight)
 
             let expandedChanged = (lastAppliedExpanded != isExpanded)

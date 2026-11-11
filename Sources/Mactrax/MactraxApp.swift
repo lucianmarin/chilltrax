@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 @MainActor
-public final class ChilltraxAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
+public final class MactraxAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     public weak var appState: AppState?
     private var appearanceObservation: NSKeyValueObservation?
 
@@ -35,7 +35,7 @@ public final class ChilltraxAppDelegate: NSObject, NSApplicationDelegate, NSMenu
 
     public func makeDockMenu() -> NSMenu? {
         guard let appState else { return nil }
-        let menu = NSMenu(title: "Chilltrax")
+        let menu = NSMenu(title: "Mactrax")
         menu.autoenablesItems = false
 
         if appState.radioPlayer.isPlaying, appState.currentSong.isMeaningfulTrack {
@@ -139,8 +139,8 @@ public final class ChilltraxAppDelegate: NSObject, NSApplicationDelegate, NSMenu
 }
 
 @main
-struct ChilltraxApp: App {
-    @NSApplicationDelegateAdaptor(ChilltraxAppDelegate.self) private var appDelegate
+struct MactraxApp: App {
+    @NSApplicationDelegateAdaptor(MactraxAppDelegate.self) private var appDelegate
     @StateObject private var appState: AppState
 
     // Write iconset or Icon Composer bundle if invoked with --export-iconset <dir> or --export-icon-bundle <dir>
@@ -172,14 +172,14 @@ struct ChilltraxApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("Chilltrax") {
+        WindowGroup("Mactrax") {
             CompactPlayerView(appState: appState)
         }
-        .defaultSize(width: ChilltraxTheme.compactWidth, height: ChilltraxTheme.compactHeight)
+        .defaultSize(width: MactraxTheme.compactWidth, height: MactraxTheme.compactHeight)
         .windowResizability(.contentSize)
         .commands {
             CommandGroup(after: .toolbar) {
-                Button(appState.fetchAlbumCoverFromChilltrax ? "Hide Album Covers" : "Show Album Covers") {
+                Button(appState.fetchAlbumCoverFromMactrax ? "Hide Album Covers" : "Show Album Covers") {
                     appState.toggleAlbumCovers()
                 }
                 .keyboardShortcut("a", modifiers: [.command, .shift])
@@ -203,7 +203,7 @@ struct ChilltraxApp: App {
 
                 Divider()
 
-                Button("Toggle Station (Chilltrax / Radio Danz)") {
+                Button("Toggle Station (Mactrax / Radio Danz)") {
                     appState.toggleStation()
                 }
                 .keyboardShortcut("s", modifiers: [.command, .shift])

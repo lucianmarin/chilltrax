@@ -457,7 +457,7 @@ public final class SongNotificationManager {
         let content = Self.makeNotificationContent(song: song, stationName: stationName)
 
         let request = UNNotificationRequest(
-            identifier: "chilltrax.song.\(UUID().uuidString)",
+            identifier: "mactrax.song.\(UUID().uuidString)",
             content: content,
             trigger: nil
         )

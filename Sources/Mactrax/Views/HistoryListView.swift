@@ -18,14 +18,14 @@ public struct HistoryListView: View {
     public var body: some View {
         VStack(spacing: 0) {
             if !appState.filteredHistoryEntries.isEmpty {
-                ScrollView(.vertical, showsIndicators: appState.displayedHistoryEntries.count > ChilltraxTheme.maxVisibleHistoryRows) {
+                ScrollView(.vertical, showsIndicators: appState.displayedHistoryEntries.count > MactraxTheme.maxVisibleHistoryRows) {
                     LazyVStack(spacing: 0) {
                         let displayed = appState.displayedHistoryEntries
                         ForEach(Array(displayed.enumerated()), id: \.element.id) { index, entry in
                             HistoryRowView(
                                 entry: entry,
                                 badgeLabel: appState.historyBadgeLabel(for: entry),
-                                showCover: appState.fetchAlbumCoverFromChilltrax,
+                                showCover: appState.fetchAlbumCoverFromMactrax,
                                 coverCache: appState.coverCache,
                                 formattedDate: Self.timeFormatter.string(from: entry.playedAt),
                                 showBottomDivider: index < displayed.count - 1 || appState.hasMoreHistoryEntries,
@@ -33,14 +33,14 @@ public struct HistoryListView: View {
                                     appState.copyHistoryEntryToClipboard(entry)
                                 }
                             )
-                            .frame(height: ChilltraxTheme.historyRowHeight)
+                            .frame(height: MactraxTheme.historyRowHeight)
                             .onAppear {
                                 appState.loadMoreHistoryIfNeeded(currentEntry: entry)
                             }
                         }
                     }
                 }
-                .frame(height: ChilltraxTheme.historyListHeight(forResultCount: appState.displayedHistoryEntries.count))
+                .frame(height: MactraxTheme.historyListHeight(forResultCount: appState.displayedHistoryEntries.count))
             }
         }
     }
@@ -93,7 +93,7 @@ private struct HistoryRowView: View {
                     if !entry.artist.isEmpty {
                         Text(entry.artist)
                             .font(.system(size: 11.5, weight: .medium))
-                            .foregroundStyle(ChilltraxTheme.accentRed)
+                            .foregroundStyle(MactraxTheme.accentRed)
                             .lineLimit(1)
                             .contentShape(Rectangle())
                             .onTapGesture {
@@ -122,7 +122,7 @@ private struct HistoryRowView: View {
                         Link(destination: buyURL) {
                             Text("Apple Music")
                                 .font(.system(size: 9.5, weight: .medium))
-                                .foregroundStyle(ChilltraxTheme.accentRed)
+                                .foregroundStyle(MactraxTheme.accentRed)
                         }
                     }
 

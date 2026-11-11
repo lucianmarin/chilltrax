@@ -6,24 +6,24 @@ import Combine
 @MainActor
 public final class AppState: ObservableObject {
     private enum DefaultsKeys {
-        static let selectedStation = "chilltrax.selectedStation"
-        static let selectedStreamURL = "chilltrax.selectedStreamURL"
-        static let selectedStreamName = "chilltrax.selectedStreamName"
-        static let customStreams = "chilltrax.customStreams"
-        static let discoveredStreams = "chilltrax.discoveredStreams"
-        static let stationAPIEndpoints = "chilltrax.stationAPIEndpoints"
-        static let visualizerMode = "chilltrax.visualizerMode"
-        static let lastActiveVisualizerMode = "chilltrax.lastActiveVisualizerMode"
-        static let notifyOnSongChange = "chilltrax.notifyOnSongChange"
-        static let fetchAlbumCoverFromChilltrax = "chilltrax.fetchAlbumCoverFromChilltrax"
-        static let isHistoryExpanded = "chilltrax.isHistoryExpanded"
-        static let historyCommitDelaySeconds = "chilltrax.historyCommitDelaySeconds"
+        static let selectedStation = "mactrax.selectedStation"
+        static let selectedStreamURL = "mactrax.selectedStreamURL"
+        static let selectedStreamName = "mactrax.selectedStreamName"
+        static let customStreams = "mactrax.customStreams"
+        static let discoveredStreams = "mactrax.discoveredStreams"
+        static let stationAPIEndpoints = "mactrax.stationAPIEndpoints"
+        static let visualizerMode = "mactrax.visualizerMode"
+        static let lastActiveVisualizerMode = "mactrax.lastActiveVisualizerMode"
+        static let notifyOnSongChange = "mactrax.notifyOnSongChange"
+        static let fetchAlbumCoverFromMactrax = "mactrax.fetchAlbumCoverFromMactrax"
+        static let isHistoryExpanded = "mactrax.isHistoryExpanded"
+        static let historyCommitDelaySeconds = "mactrax.historyCommitDelaySeconds"
     }
 
     // MARK: - Published UI & Player State
 
     @Published public var currentSong: SongMetadata = .placeholder
-    @Published public var selectedStation: RadioStation = .chilltrax {
+    @Published public var selectedStation: RadioStation = .mactrax {
         didSet {
             defaults.set(selectedStation.rawValue, forKey: DefaultsKeys.selectedStation)
         }
@@ -76,10 +76,10 @@ public final class AppState: ObservableObject {
             }
         }
     }
-    @Published public var fetchAlbumCoverFromChilltrax: Bool {
+    @Published public var fetchAlbumCoverFromMactrax: Bool {
         didSet {
-            defaults.set(fetchAlbumCoverFromChilltrax, forKey: DefaultsKeys.fetchAlbumCoverFromChilltrax)
-            if fetchAlbumCoverFromChilltrax {
+            defaults.set(fetchAlbumCoverFromMactrax, forKey: DefaultsKeys.fetchAlbumCoverFromMactrax)
+            if fetchAlbumCoverFromMactrax {
                 Task {
                     await refreshCoverArtForSettingChange()
                 }
@@ -125,7 +125,7 @@ public final class AppState: ObservableObject {
     @Published public private(set) var discoveryStatusMessage: String?
 
     public let radioPlayer: RadioPlayer
-    public let client: ChilltraxClient
+    public let client: MactraxClient
     public let historyStore: CompressedHistoryStore
     public let coverCache: AlbumCoverCache
     public private(set) var minimumHistoryPlayDuration: TimeInterval
@@ -272,7 +272,7 @@ public final class AppState: ObservableObject {
     }
 
     public init(
-        client: ChilltraxClient = ChilltraxClient(),
+        client: MactraxClient = MactraxClient(),
         historyStore: CompressedHistoryStore = CompressedHistoryStore(),
         coverCache: AlbumCoverCache? = nil,
         radioPlayer: RadioPlayer? = nil,
@@ -346,16 +346,16 @@ public final class AppState: ObservableObject {
                 $0.urlString.caseInsensitiveCompare(savedURL) == .orderedSame
             }
             let resolvedStream = matching ?? StationStream(
-                name: savedName ?? "Chilltrax",
+                name: savedName ?? "Mactrax",
                 urlString: savedURL,
                 formatDetails: "Live Stream",
-                isChilltraxOfficial: true,
+                isMactraxOfficial: true,
                 station: savedStation
             )
             self.selectedStation = savedStation ?? resolvedStream.station
             self.selectedStream = resolvedStream
         } else {
-            let station = savedStation ?? .chilltrax
+            let station = savedStation ?? .mactrax
             self.selectedStation = station
             self.selectedStream = StationStream.preferredDefaultStream(for: station, in: initialDiscovered)
         }
@@ -384,10 +384,10 @@ public final class AppState: ObservableObject {
             self.notifyOnSongChange = true
         }
 
-        if defaults.object(forKey: DefaultsKeys.fetchAlbumCoverFromChilltrax) != nil {
-            self.fetchAlbumCoverFromChilltrax = defaults.bool(forKey: DefaultsKeys.fetchAlbumCoverFromChilltrax)
+        if defaults.object(forKey: DefaultsKeys.fetchAlbumCoverFromMactrax) != nil {
+            self.fetchAlbumCoverFromMactrax = defaults.bool(forKey: DefaultsKeys.fetchAlbumCoverFromMactrax)
         } else {
-            self.fetchAlbumCoverFromChilltrax = true
+            self.fetchAlbumCoverFromMactrax = true
         }
 
         let initialHistoryExpanded: Bool
@@ -501,7 +501,7 @@ public final class AppState: ObservableObject {
 
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedName = trimmedName.isEmpty ? (url.host ?? "Custom Station") : trimmedName
-        let isChilltrax = trimmedURL.lowercased().contains("chilltrax")
+        let isMactrax = trimmedURL.lowercased().contains("mactrax")
             || trimmedURL.lowercased().contains("electronicmusicradiogroup")
 
         let custom = StationStream(
@@ -509,7 +509,7 @@ public final class AppState: ObservableObject {
             name: resolvedName,
             urlString: trimmedURL,
             formatDetails: "Custom Stream URL",
-            isChilltraxOfficial: isChilltrax
+            isMactraxOfficial: isMactrax
         )
 
         if let index = customStreams.firstIndex(where: { $0.urlString.caseInsensitiveCompare(trimmedURL) == .orderedSame }) {
@@ -557,7 +557,7 @@ public final class AppState: ObservableObject {
     }
 
     public func toggleAlbumCovers() {
-        fetchAlbumCoverFromChilltrax.toggle()
+        fetchAlbumCoverFromMactrax.toggle()
     }
 
     private func updateHistoryExpansionForSearch(previousQuery: String) {
@@ -578,11 +578,11 @@ public final class AppState: ObservableObject {
         }
     }
 
-    // MARK: - Broadcast & API Discovery from chilltrax.com and radiodanz.com
+    // MARK: - Broadcast & API Discovery from mactrax.com and radiodanz.com
 
-    public func discoverBroadcastsFromChilltraxWebsite() async {
+    public func discoverBroadcastsFromMactraxWebsite() async {
         isDiscoveringBroadcasts = true
-        discoveryStatusMessage = "Scanning chilltrax.com and radiodanz.com for broadcasts and API URLs…"
+        discoveryStatusMessage = "Scanning mactrax.com and radiodanz.com for broadcasts and API URLs…"
         defer { isDiscoveringBroadcasts = false }
 
         do {
@@ -610,7 +610,7 @@ public final class AppState: ObservableObject {
             discoveredStreams = combinedStreams
             stationAPIEndpoints = updatedEndpoints
 
-            let chilltraxCount = results[.chilltrax]?.streams.count ?? 0
+            let mactraxCount = results[.mactrax]?.streams.count ?? 0
             let danzCount = results[.radioDanz]?.streams.count ?? 0
             let apiSummary: String
             if updatedAPISites.isEmpty {
@@ -618,7 +618,7 @@ public final class AppState: ObservableObject {
             } else {
                 apiSummary = "Updated API URLs for \(updatedAPISites.joined(separator: ", "))."
             }
-            discoveryStatusMessage = "Found \(chilltraxCount) Chilltrax and \(danzCount) Radio Danz broadcasts. \(apiSummary)"
+            discoveryStatusMessage = "Found \(mactraxCount) Mactrax and \(danzCount) Radio Danz broadcasts. \(apiSummary)"
 
             // Ensure current selection stays valid or updated
             if let updatedMatch = combinedStreams.first(where: { $0.urlString.caseInsensitiveCompare(selectedStream.urlString) == .orderedSame }) {
@@ -661,20 +661,20 @@ public final class AppState: ObservableObject {
         guard radioPlayer.isPlaying else { return }
         let activeStation = selectedStation
         let endpoints = stationAPIEndpoints[activeStation] ?? activeStation.defaultAPIEndpoints
-        let shouldQueryStationSongInfo = selectedStream.isChilltraxOfficial
+        let shouldQueryStationSongInfo = selectedStream.isMactraxOfficial
         if shouldQueryStationSongInfo {
             do {
                 let metadata = try await client.fetchNowPlaying(
                     station: activeStation,
                     endpoints: endpoints,
-                    fetchAlbumCover: fetchAlbumCoverFromChilltrax
+                    fetchAlbumCover: fetchAlbumCoverFromMactrax
                 )
                 guard radioPlayer.isPlaying, selectedStation == activeStation else { return }
                 handleIncomingSongMetadata(metadata, sourceIsICY: false)
             } catch {
                 // Keep existing metadata on transient failure
             }
-        } else if fetchAlbumCoverFromChilltrax && currentSong.coverURLString == nil {
+        } else if fetchAlbumCoverFromMactrax && currentSong.coverURLString == nil {
             if let cover = try? await client.fetchCurrentAlbumCoverURLString(
                 station: activeStation,
                 endpoints: endpoints
@@ -777,15 +777,15 @@ public final class AppState: ObservableObject {
     public func handleIncomingSongMetadata(_ incoming: SongMetadata, sourceIsICY: Bool) {
         guard radioPlayer.isPlaying, incoming.isMeaningfulTrack else { return }
 
-        // If we are on an official Chilltrax stream and receive bare ICY metadata, preserve the richer
-        // Chilltrax album/mix/cover fields if it's the same track
+        // If we are on an official Mactrax stream and receive bare ICY metadata, preserve the richer
+        // Mactrax album/mix/cover fields if it's the same track
         var merged = incoming
         if merged.normalizedKey == currentSong.normalizedKey {
             if merged.albumOrMix.isEmpty { merged.albumOrMix = currentSong.albumOrMix }
             if merged.year.isEmpty { merged.year = currentSong.year }
             if merged.buyURLString.isEmpty { merged.buyURLString = currentSong.buyURLString }
             if merged.coverURLString == nil { merged.coverURLString = currentSong.coverURLString }
-        } else if !fetchAlbumCoverFromChilltrax {
+        } else if !fetchAlbumCoverFromMactrax {
             merged.coverURLString = nil
         }
 
@@ -829,9 +829,9 @@ public final class AppState: ObservableObject {
             )
         }
 
-        // If a song change was detected via ICY stream title and Chilltrax metadata/cover is enabled,
+        // If a song change was detected via ICY stream title and Mactrax metadata/cover is enabled,
         // immediately trigger a background fetch for the updated cover art / details
-        if sourceIsICY && isNewTrack && (selectedStream.isChilltraxOfficial || fetchAlbumCoverFromChilltrax) {
+        if sourceIsICY && isNewTrack && (selectedStream.isMactraxOfficial || fetchAlbumCoverFromMactrax) {
             Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
                 await self?.refreshNowPlayingMetadata()
@@ -849,7 +849,7 @@ public final class AppState: ObservableObject {
     }
 
     private func cacheAlbumCoverForHistoryItem(_ coverURL: URL?) {
-        guard fetchAlbumCoverFromChilltrax, let coverURL else { return }
+        guard fetchAlbumCoverFromMactrax, let coverURL else { return }
         Task { @MainActor [weak self] in
             guard let self else { return }
             await self.coverCache.cacheCoverIfNeeded(for: coverURL)
@@ -858,7 +858,7 @@ public final class AppState: ObservableObject {
     }
 
     private func refreshCoverArtForSettingChange() async {
-        guard fetchAlbumCoverFromChilltrax else { return }
+        guard fetchAlbumCoverFromMactrax else { return }
 
         // 1. Fetch current playing song cover if playing and missing
         if radioPlayer.isPlaying, currentSong.isMeaningfulTrack, currentSong.coverURL == nil {
@@ -885,7 +885,7 @@ public final class AppState: ObservableObject {
     }
 
     public func backfillMissingHistoryAlbumCovers() async {
-        guard fetchAlbumCoverFromChilltrax else { return }
+        guard fetchAlbumCoverFromMactrax else { return }
         let entriesMissingCovers = historyEntries.filter { $0.coverURL == nil }
         guard !entriesMissingCovers.isEmpty else { return }
 
@@ -901,7 +901,7 @@ public final class AppState: ObservableObject {
             }
         }
 
-        guard fetchAlbumCoverFromChilltrax else { return }
+        guard fetchAlbumCoverFromMactrax else { return }
 
         var updatedEntries = historyEntries
         var didChange = false
@@ -940,7 +940,7 @@ public final class AppState: ObservableObject {
         // 3. For any remaining entries still missing cover URLs, look up cover art via iTunes Search API
         let remainingIndices = historyEntries.indices.filter { historyEntries[$0].coverURL == nil }
         for index in remainingIndices {
-            guard fetchAlbumCoverFromChilltrax, index < historyEntries.count else { break }
+            guard fetchAlbumCoverFromMactrax, index < historyEntries.count else { break }
             let entry = historyEntries[index]
             guard entry.coverURL == nil else { continue }
             if let foundCover = try? await client.searchAlbumCoverURLString(
@@ -948,7 +948,7 @@ public final class AppState: ObservableObject {
                 title: entry.title,
                 album: entry.albumOrMix
             ), !foundCover.isEmpty {
-                guard fetchAlbumCoverFromChilltrax else { break }
+                guard fetchAlbumCoverFromMactrax else { break }
                 if let targetIndex = historyEntries.firstIndex(where: { $0.id == entry.id }),
                    historyEntries[targetIndex].coverURL == nil {
                     var current = historyEntries

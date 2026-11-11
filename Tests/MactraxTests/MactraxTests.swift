@@ -1,23 +1,23 @@
 import XCTest
 import SwiftUI
-@testable import Chilltrax
+@testable import Mactrax
 
-final class ChilltraxTests: XCTestCase {
+final class MactraxTests: XCTestCase {
 
     // MARK: - Broadcast Discovery & PLS Parsing
 
-    func testParseBroadcastStreamsFromChilltraxHTML() {
+    func testParseBroadcastStreamsFromMactraxHTML() {
         let sampleHTML = """
         <html>
         <body>
         <script>
-            streamurl: "https://www.chilltrax.com/listen/?mode=redirect",
+            streamurl: "https://www.mactrax.com/listen/?mode=redirect",
         </script>
         <div id="listen-section">
             <ul>
                 <li><a href="http://streams.electronicmusicradiogroup.org:9050" target="_blank">Highest (HD) Quality 128Kbps AAC+</a></li>
                 <li><a href="http://streams.electronicmusicradiogroup.org:9000" target="_blank">High Quality 128Kbps MP3</a></li>
-                <li><a id="firewallStream" href="https://www.chilltrax.com/listen" target="_blank">High Quality 128Kbps MP3 (firewall friendly)</a></li>
+                <li><a id="firewallStream" href="https://www.mactrax.com/listen" target="_blank">High Quality 128Kbps MP3 (firewall friendly)</a></li>
                 <li><a href="http://streams.electronicmusicradiogroup.org:9020" target="_blank">High Quality 80Kbps AAC+</a></li>
                 <li><a href="http://streams.electronicmusicradiogroup.org:9010" target="_blank">High Quality 64Kbps AAC+</a></li>
             </ul>
@@ -26,14 +26,14 @@ final class ChilltraxTests: XCTestCase {
         </html>
         """
 
-        let streams = ChilltraxClient.parseBroadcastStreams(fromHTML: sampleHTML)
+        let streams = MactraxClient.parseBroadcastStreams(fromHTML: sampleHTML)
         XCTAssertGreaterThanOrEqual(streams.count, 6)
-        XCTAssertTrue(streams.contains { $0.urlString == "https://www.chilltrax.com/listen/?mode=redirect" })
+        XCTAssertTrue(streams.contains { $0.urlString == "https://www.mactrax.com/listen/?mode=redirect" })
         XCTAssertTrue(streams.contains { $0.urlString == "http://streams.electronicmusicradiogroup.org:9050" })
         XCTAssertTrue(streams.contains { $0.urlString == "http://streams.electronicmusicradiogroup.org:9000" })
-        XCTAssertTrue(streams.contains { $0.urlString == "https://www.chilltrax.com/listen" })
-        XCTAssertTrue(streams.contains { $0.urlString == "https://streamssleu.chilltrax.com/stream?sid=1" })
-        XCTAssertTrue(streams.allSatisfy { $0.station == .chilltrax })
+        XCTAssertTrue(streams.contains { $0.urlString == "https://www.mactrax.com/listen" })
+        XCTAssertTrue(streams.contains { $0.urlString == "https://streamssleu.mactrax.com/stream?sid=1" })
+        XCTAssertTrue(streams.allSatisfy { $0.station == .mactrax })
     }
 
     func testParseRadioDanzBroadcastStreamsAndAPIEndpoints() {
@@ -63,7 +63,7 @@ final class ChilltraxTests: XCTestCase {
         </html>
         """
 
-        let streams = ChilltraxClient.parseBroadcastStreams(fromHTML: radioDanzHTML, station: .radioDanz)
+        let streams = MactraxClient.parseBroadcastStreams(fromHTML: radioDanzHTML, station: .radioDanz)
         XCTAssertGreaterThanOrEqual(streams.count, 5)
         XCTAssertTrue(streams.contains { $0.urlString == "https://www.radiodanz.com/results/?mode=redirect" })
         XCTAssertTrue(streams.contains { $0.urlString == "http://streams.electronicmusicradiogroup.org:8030/listen.pls" })
@@ -71,7 +71,7 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertTrue(streams.contains { $0.urlString == "https://streamssl.radiodanz.com/live" })
         XCTAssertTrue(streams.allSatisfy { $0.station == .radioDanz })
 
-        let endpoints = ChilltraxClient.parseAPIEndpoints(fromHTML: radioDanzHTML, station: .radioDanz)
+        let endpoints = MactraxClient.parseAPIEndpoints(fromHTML: radioDanzHTML, station: .radioDanz)
         XCTAssertEqual(endpoints.songInfoURLString, "https://www.radiodanz.com/php/GetSongInformationV2.php")
         XCTAssertEqual(endpoints.coverImageURLString, "https://www.radiodanz.com/php/GetCoverImageV2.php")
         XCTAssertEqual(endpoints.lastTenURLString, "https://www.radiodanz.com/php/GetLastTenV2.php")
@@ -81,32 +81,32 @@ final class ChilltraxTests: XCTestCase {
         let pls = """
         [playlist]
         NumberOfEntries=1
-        File1=https://streamssleu.chilltrax.com/stream?sid=1
-        Title1=chilltrax
+        File1=https://streamssleu.mactrax.com/stream?sid=1
+        Title1=mactrax
         Length1=-1
         Version=2
         """
-        let url = ChilltraxClient.parsePLSStreamURL(from: pls)
-        XCTAssertEqual(url?.absoluteString, "https://streamssleu.chilltrax.com/stream?sid=1")
+        let url = MactraxClient.parsePLSStreamURL(from: pls)
+        XCTAssertEqual(url?.absoluteString, "https://streamssleu.mactrax.com/stream?sid=1")
     }
 
     func testDefaultStreamPrefersRedirectAndFallsBackToSecondBestOption() {
-        let chilltraxDefault = RadioStation.chilltrax.defaultStream
-        XCTAssertTrue(chilltraxDefault.urlString.localizedCaseInsensitiveContains("redirect"))
-        XCTAssertEqual(chilltraxDefault.urlString, "https://www.chilltrax.com/listen/?mode=redirect")
+        let mactraxDefault = RadioStation.mactrax.defaultStream
+        XCTAssertTrue(mactraxDefault.urlString.localizedCaseInsensitiveContains("redirect"))
+        XCTAssertEqual(mactraxDefault.urlString, "https://www.mactrax.com/listen/?mode=redirect")
 
         let radioDanzDefault = RadioStation.radioDanz.defaultStream
         XCTAssertTrue(radioDanzDefault.urlString.localizedCaseInsensitiveContains("redirect"))
         XCTAssertEqual(radioDanzDefault.urlString, "https://www.radiodanz.com/results/?mode=redirect")
 
-        let chilltraxWithoutRedirect = StationStream.defaultChilltraxStreams.filter {
+        let mactraxWithoutRedirect = StationStream.defaultMactraxStreams.filter {
             !$0.urlString.localizedCaseInsensitiveContains("redirect")
         }
-        let chilltraxFallback = StationStream.preferredDefaultStream(
-            for: .chilltrax,
-            in: chilltraxWithoutRedirect
+        let mactraxFallback = StationStream.preferredDefaultStream(
+            for: .mactrax,
+            in: mactraxWithoutRedirect
         )
-        XCTAssertEqual(chilltraxFallback.urlString, "https://streamssleu.chilltrax.com/stream?sid=1")
+        XCTAssertEqual(mactraxFallback.urlString, "https://streamssleu.mactrax.com/stream?sid=1")
 
         let radioDanzWithoutRedirect = StationStream.defaultRadioDanzStreams.filter {
             !$0.urlString.localizedCaseInsensitiveContains("redirect")
@@ -129,8 +129,8 @@ final class ChilltraxTests: XCTestCase {
         {"cover":"https:\\/\\/is1-ssl.mzstatic.com\\/image\\/thumb\\/Music\\/300x300bb.jpg"}
         """.data(using: .utf8)!
 
-        let info = try JSONDecoder().decode(ChilltraxNowPlayingResponse.self, from: infoJSON)
-        let cover = try JSONDecoder().decode(ChilltraxCoverResponse.self, from: coverJSON)
+        let info = try JSONDecoder().decode(MactraxNowPlayingResponse.self, from: infoJSON)
+        let cover = try JSONDecoder().decode(MactraxCoverResponse.self, from: coverJSON)
 
         let metadata = info.toSongMetadata(coverURLString: cover.cover)
         XCTAssertEqual(metadata.artist, "Boycott & Lumynesynth")
@@ -154,7 +154,7 @@ final class ChilltraxTests: XCTestCase {
 
     func testCompressedHistoryStorePersistenceAndDeduplication() throws {
         let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ChilltraxTests-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("MactraxTests-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
         let fileURL = tempDir.appendingPathComponent("history.tsv.lzfse")
@@ -166,7 +166,7 @@ final class ChilltraxTests: XCTestCase {
             title: "Kerala",
             albumOrMix: "Migration",
             year: "2017",
-            coverURLString: "https://www.chilltrax.com/images/cover/kerala.jpg"
+            coverURLString: "https://www.mactrax.com/images/cover/kerala.jpg"
         )
         let song2 = SongMetadata(
             artist: "Zero 7",
@@ -203,7 +203,7 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertEqual(reloaded.count, 2)
         XCTAssertEqual(reloaded[0].artist, "Zero 7")
         XCTAssertEqual(reloaded[0].title, "In the Waiting Line")
-        XCTAssertEqual(reloaded[0].coverURL?.absoluteString, "https://www.chilltrax.com/images/cover/zero7.jpg")
+        XCTAssertEqual(reloaded[0].coverURL?.absoluteString, "https://www.mactrax.com/images/cover/zero7.jpg")
         XCTAssertEqual(reloaded[1].artist, "Bonobo")
         XCTAssertEqual(reloaded[1].title, "Kerala")
 
@@ -217,7 +217,7 @@ final class ChilltraxTests: XCTestCase {
 
     @MainActor
     func testAppStateCustomStreamAndHistorySearch() {
-        let suiteName = "ChilltraxTests.\(UUID().uuidString)"
+        let suiteName = "MactraxTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
@@ -244,18 +244,18 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertEqual(state.visualizerMode.systemImage, "text.alignleft")
         XCTAssertFalse(state.isVisualizerVisible)
         XCTAssertEqual(
-            ChilltraxTheme.contentHeight(isExpanded: false, resultCount: 0, showVisualizer: false),
-            ChilltraxTheme.compactNoVisualizerHeight
+            MactraxTheme.contentHeight(isExpanded: false, resultCount: 0, showVisualizer: false),
+            MactraxTheme.compactNoVisualizerHeight
         )
         // Toggling visibility back restores the last active visualizer mode (.waveform)
         state.toggleVisualizerVisibility()
         XCTAssertEqual(state.visualizerMode, .waveform)
         XCTAssertTrue(state.isVisualizerVisible)
 
-        // Default station is Chilltrax (TRAX) and can switch to Radio Danz (DANZ)
-        XCTAssertEqual(state.selectedStation, .chilltrax)
+        // Default station is Mactrax (TRAX) and can switch to Radio Danz (DANZ)
+        XCTAssertEqual(state.selectedStation, .mactrax)
         XCTAssertEqual(state.selectedStation.badgeLabel, "TRAX")
-        XCTAssertEqual(state.selectedStream.station, .chilltrax)
+        XCTAssertEqual(state.selectedStream.station, .mactrax)
         XCTAssertEqual(state.toolbarStatusLabel, "READY")
 
         var settingsOpenCount = 0
@@ -264,7 +264,7 @@ final class ChilltraxTests: XCTestCase {
             settingsOpenCount += 1
         })
         XCTAssertEqual(settingsOpenCount, 1)
-        XCTAssertEqual(state.selectedStation, .chilltrax)
+        XCTAssertEqual(state.selectedStation, .mactrax)
 
         // Clicking toolbar status while TRAX / DANZ switches stations without opening Settings
         state.radioPlayer.setSimulatedPlaybackStateForTesting(isPlaying: true, status: .playing)
@@ -282,7 +282,7 @@ final class ChilltraxTests: XCTestCase {
             settingsOpenCount += 1
         })
         XCTAssertEqual(settingsOpenCount, 1)
-        XCTAssertEqual(state.selectedStation, .chilltrax)
+        XCTAssertEqual(state.selectedStation, .mactrax)
         XCTAssertEqual(state.toolbarStatusLabel, "TRAX")
 
         // Clicking toolbar status while PAUSED opens Settings without switching stations
@@ -292,11 +292,11 @@ final class ChilltraxTests: XCTestCase {
             settingsOpenCount += 1
         })
         XCTAssertEqual(settingsOpenCount, 2)
-        XCTAssertEqual(state.selectedStation, .chilltrax)
+        XCTAssertEqual(state.selectedStation, .mactrax)
 
-        state.selectStation(.chilltrax)
-        XCTAssertEqual(state.selectedStation, .chilltrax)
-        XCTAssertEqual(state.selectedStream.station, .chilltrax)
+        state.selectStation(.mactrax)
+        XCTAssertEqual(state.selectedStation, .mactrax)
+        XCTAssertEqual(state.selectedStream.station, .mactrax)
 
         // Test custom stream configuration
         XCTAssertFalse(state.addAndSelectCustomStream(name: "Invalid", urlString: "not-a-url"))
@@ -305,7 +305,7 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertEqual(state.selectedStream.urlString, "https://radio.stereoscenic.com/asp-s")
 
         // Test song change recording & TRAX / DANZ history labels across stations
-        state.selectStation(.chilltrax)
+        state.selectStation(.mactrax)
         state.radioPlayer.setSimulatedPlaybackStateForTesting(isPlaying: true, status: .playing)
         state.handleIncomingSongMetadata(
             SongMetadata(artist: "Air", title: "La Femme d'Argent", albumOrMix: "Moon Safari", coverURLString: "https://example.com/air.jpg"),
@@ -377,10 +377,10 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertTrue(state.filteredHistoryEntries.isEmpty)
         XCTAssertTrue(state.isHistoryExpanded)
         XCTAssertTrue(state.isSearchBarVisible)
-        XCTAssertEqual(ChilltraxTheme.historyListHeight(forResultCount: 0), 0)
+        XCTAssertEqual(MactraxTheme.historyListHeight(forResultCount: 0), 0)
         XCTAssertEqual(
-            ChilltraxTheme.contentHeight(isExpanded: true, resultCount: 0),
-            ChilltraxTheme.compactHeight + ChilltraxTheme.searchBarSectionHeight
+            MactraxTheme.contentHeight(isExpanded: true, resultCount: 0),
+            MactraxTheme.compactHeight + MactraxTheme.searchBarSectionHeight
         )
         // Clearing query or matching again keeps song history expanded & search bar visible
         state.historySearchQuery = "moon"
@@ -396,9 +396,9 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertFalse(state.isSearchBarVisible)
 
         // Disabling album cover setting keeps existing fetched album covers displayed and prevents fetching new ones
-        XCTAssertTrue(state.fetchAlbumCoverFromChilltrax)
+        XCTAssertTrue(state.fetchAlbumCoverFromMactrax)
         state.toggleAlbumCovers()
-        XCTAssertFalse(state.fetchAlbumCoverFromChilltrax)
+        XCTAssertFalse(state.fetchAlbumCoverFromMactrax)
         XCTAssertEqual(state.currentSong.coverURL?.absoluteString, "https://example.com/ma.jpg")
         state.handleIncomingSongMetadata(
             SongMetadata(artist: "Bonobo", title: "Cirrus", albumOrMix: "The North Borders", coverURLString: "https://example.com/bonobo.jpg"),
@@ -411,11 +411,11 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertEqual(state.historyEntries[1].coverURL?.absoluteString, "https://example.com/ma.jpg")
         XCTAssertEqual(state.historyEntries[2].coverURL?.absoluteString, "https://example.com/air.jpg")
 
-        let chilltraxNotification = SongNotificationManager.makeNotificationContent(
+        let mactraxNotification = SongNotificationManager.makeNotificationContent(
             song: SongMetadata(artist: "Air", title: "La Femme d'Argent", albumOrMix: "Moon Safari"),
-            station: .chilltrax
+            station: .mactrax
         )
-        XCTAssertEqual(chilltraxNotification.body, "Now playing on Chilltrax")
+        XCTAssertEqual(mactraxNotification.body, "Now playing on Mactrax")
 
         let radioDanzNotification = SongNotificationManager.makeNotificationContent(
             song: SongMetadata(artist: "Massive Attack", title: "Teardrop", albumOrMix: "Mezzanine"),
@@ -489,16 +489,16 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: tempIconBundle.appendingPathComponent("Assets/white.svg").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: tempIconBundle.appendingPathComponent("Assets/black.svg").path))
 
-        XCTAssertEqual(ChilltraxTheme.accentRed, Color(red: 0xFA / 255.0, green: 0, blue: 0))
-        XCTAssertEqual(ChilltraxTheme.visualizerBackground(for: .light), ChilltraxTheme.visualizerWhite)
-        XCTAssertEqual(ChilltraxTheme.visualizerContrastColor(for: .light), ChilltraxTheme.visualizerBlack)
-        XCTAssertEqual(ChilltraxTheme.visualizerBackground(for: .dark), ChilltraxTheme.visualizerBlack)
-        XCTAssertEqual(ChilltraxTheme.visualizerContrastColor(for: .dark), ChilltraxTheme.visualizerWhite)
+        XCTAssertEqual(MactraxTheme.accentRed, Color(red: 0xFA / 255.0, green: 0, blue: 0))
+        XCTAssertEqual(MactraxTheme.visualizerBackground(for: .light), MactraxTheme.visualizerWhite)
+        XCTAssertEqual(MactraxTheme.visualizerContrastColor(for: .light), MactraxTheme.visualizerBlack)
+        XCTAssertEqual(MactraxTheme.visualizerBackground(for: .dark), MactraxTheme.visualizerBlack)
+        XCTAssertEqual(MactraxTheme.visualizerContrastColor(for: .dark), MactraxTheme.visualizerWhite)
     }
 
     @MainActor
     func testWindowExpandCollapsePreservesTopEdgeAndLayoutHeight() {
-        let suiteName = "ChilltraxWindowTests.\(UUID().uuidString)"
+        let suiteName = "MactraxWindowTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
@@ -516,7 +516,7 @@ final class ChilltraxTests: XCTestCase {
 
         let hostingController = NSHostingController(rootView: CompactPlayerView(appState: state))
         let window = NSWindow(
-            contentRect: NSRect(x: 200, y: 400, width: ChilltraxTheme.compactWidth, height: ChilltraxTheme.compactHeight),
+            contentRect: NSRect(x: 200, y: 400, width: MactraxTheme.compactWidth, height: MactraxTheme.compactHeight),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -531,10 +531,10 @@ final class ChilltraxTests: XCTestCase {
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
 
         let initialTopY = window.frame.maxY
-        XCTAssertEqual(window.contentLayoutRect.height, ChilltraxTheme.compactHeight, accuracy: 1.0)
+        XCTAssertEqual(window.contentLayoutRect.height, MactraxTheme.compactHeight, accuracy: 1.0)
         XCTAssertFalse(window.styleMask.contains(.resizable))
-        XCTAssertEqual(window.minSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
-        XCTAssertEqual(window.maxSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
+        XCTAssertEqual(window.minSize.width, MactraxTheme.compactWidth, accuracy: 0.5)
+        XCTAssertEqual(window.maxSize.width, MactraxTheme.compactWidth, accuracy: 0.5)
         XCTAssertEqual(window.minSize.height, window.frame.height, accuracy: 0.5)
         XCTAssertEqual(window.maxSize.height, window.frame.height, accuracy: 0.5)
 
@@ -543,7 +543,7 @@ final class ChilltraxTests: XCTestCase {
         NotificationCenter.default.post(name: NSWindow.willCloseNotification, object: window)
 
         let reopenedWindow = NSWindow(
-            contentRect: NSRect(x: 100, y: 100, width: ChilltraxTheme.compactWidth, height: ChilltraxTheme.compactHeight),
+            contentRect: NSRect(x: 100, y: 100, width: MactraxTheme.compactWidth, height: MactraxTheme.compactHeight),
             styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -570,12 +570,12 @@ final class ChilltraxTests: XCTestCase {
         coordinator.syncSize(isExpanded: true, resultCount: state.filteredHistoryEntries.count, on: window)
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
 
-        let twoResultsHeight = ChilltraxTheme.contentHeight(isExpanded: true, resultCount: 2)
+        let twoResultsHeight = MactraxTheme.contentHeight(isExpanded: true, resultCount: 2)
         XCTAssertEqual(window.frame.maxY, initialTopY, accuracy: 1.0)
         XCTAssertEqual(window.contentLayoutRect.height, twoResultsHeight, accuracy: 1.0)
         XCTAssertFalse(window.styleMask.contains(.resizable))
-        XCTAssertEqual(window.minSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
-        XCTAssertEqual(window.maxSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
+        XCTAssertEqual(window.minSize.width, MactraxTheme.compactWidth, accuracy: 0.5)
+        XCTAssertEqual(window.maxSize.width, MactraxTheme.compactWidth, accuracy: 0.5)
         XCTAssertEqual(window.minSize.height, window.frame.height, accuracy: 0.5)
         XCTAssertEqual(window.maxSize.height, window.frame.height, accuracy: 0.5)
 
@@ -591,7 +591,7 @@ final class ChilltraxTests: XCTestCase {
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
 
         XCTAssertEqual(window.frame.maxY, initialTopY, accuracy: 1.0)
-        XCTAssertEqual(window.contentLayoutRect.height, ChilltraxTheme.expandedHeight, accuracy: 1.0)
+        XCTAssertEqual(window.contentLayoutRect.height, MactraxTheme.expandedHeight, accuracy: 1.0)
         XCTAssertFalse(window.styleMask.contains(.resizable))
         XCTAssertEqual(window.minSize.height, window.frame.height, accuracy: 0.5)
         XCTAssertEqual(window.maxSize.height, window.frame.height, accuracy: 0.5)
@@ -603,10 +603,10 @@ final class ChilltraxTests: XCTestCase {
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
 
         XCTAssertEqual(window.frame.maxY, initialTopY, accuracy: 1.0)
-        XCTAssertEqual(window.contentLayoutRect.height, ChilltraxTheme.compactHeight, accuracy: 1.0)
+        XCTAssertEqual(window.contentLayoutRect.height, MactraxTheme.compactHeight, accuracy: 1.0)
         XCTAssertFalse(window.styleMask.contains(.resizable))
-        XCTAssertEqual(window.minSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
-        XCTAssertEqual(window.maxSize.width, ChilltraxTheme.compactWidth, accuracy: 0.5)
+        XCTAssertEqual(window.minSize.width, MactraxTheme.compactWidth, accuracy: 0.5)
+        XCTAssertEqual(window.maxSize.width, MactraxTheme.compactWidth, accuracy: 0.5)
         XCTAssertEqual(window.minSize.height, window.frame.height, accuracy: 0.5)
         XCTAssertEqual(window.maxSize.height, window.frame.height, accuracy: 0.5)
 
@@ -615,7 +615,7 @@ final class ChilltraxTests: XCTestCase {
         hostingController.view.layoutSubtreeIfNeeded()
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
 
-        XCTAssertEqual(window.contentLayoutRect.height, ChilltraxTheme.compactHeight, accuracy: 1.0)
+        XCTAssertEqual(window.contentLayoutRect.height, MactraxTheme.compactHeight, accuracy: 1.0)
         XCTAssertFalse(window.styleMask.contains(.resizable))
         XCTAssertEqual(window.minSize.height, window.frame.height, accuracy: 0.5)
         XCTAssertEqual(window.maxSize.height, window.frame.height, accuracy: 0.5)
@@ -689,28 +689,28 @@ final class ChilltraxTests: XCTestCase {
         }
 
         // Spectrum bar color transitions by height: gray (low) -> black/contrast (mid) -> red (high/maximum)
-        XCTAssertEqual(VisualizerView.spectrumBarColor(forNormalizedHeight: 0.12, colorScheme: .light), ChilltraxTheme.visualizerGray)
-        XCTAssertEqual(VisualizerView.spectrumBarColor(forNormalizedHeight: 0.45, colorScheme: .light), ChilltraxTheme.visualizerBlack)
-        XCTAssertEqual(VisualizerView.spectrumBarColor(forNormalizedHeight: 0.45, colorScheme: .dark), ChilltraxTheme.visualizerWhite)
-        XCTAssertEqual(VisualizerView.spectrumBarColor(forNormalizedHeight: 0.85, colorScheme: .light), ChilltraxTheme.accentRed)
-        XCTAssertEqual(VisualizerView.spectrumBarColor(forNormalizedHeight: 1.00, colorScheme: .light), ChilltraxTheme.accentRed)
+        XCTAssertEqual(VisualizerView.spectrumBarColor(forNormalizedHeight: 0.12, colorScheme: .light), MactraxTheme.visualizerGray)
+        XCTAssertEqual(VisualizerView.spectrumBarColor(forNormalizedHeight: 0.45, colorScheme: .light), MactraxTheme.visualizerBlack)
+        XCTAssertEqual(VisualizerView.spectrumBarColor(forNormalizedHeight: 0.45, colorScheme: .dark), MactraxTheme.visualizerWhite)
+        XCTAssertEqual(VisualizerView.spectrumBarColor(forNormalizedHeight: 0.85, colorScheme: .light), MactraxTheme.accentRed)
+        XCTAssertEqual(VisualizerView.spectrumBarColor(forNormalizedHeight: 1.00, colorScheme: .light), MactraxTheme.accentRed)
 
         // Trailing fade from high red bars stays red and mid black bars stays black/contrast as bars drop
         XCTAssertEqual(
             VisualizerView.spectrumTrailColor(forBarHeight: 0.35, trailHeight: 0.82, colorScheme: .light),
-            ChilltraxTheme.accentRed
+            MactraxTheme.accentRed
         )
         XCTAssertEqual(
             VisualizerView.spectrumTrailColor(forBarHeight: 0.95, trailHeight: 1.00, colorScheme: .light),
-            ChilltraxTheme.accentRed
+            MactraxTheme.accentRed
         )
         XCTAssertEqual(
             VisualizerView.spectrumTrailColor(forBarHeight: 0.15, trailHeight: 0.38, colorScheme: .light),
-            ChilltraxTheme.visualizerBlack
+            MactraxTheme.visualizerBlack
         )
         XCTAssertEqual(
             VisualizerView.spectrumTrailColor(forBarHeight: 0.12, trailHeight: 0.18, colorScheme: .light),
-            ChilltraxTheme.visualizerGray
+            MactraxTheme.visualizerGray
         )
 
         // 3. Verify rendered output of both .spectrum and .waveform visualizers increases active pixel energy with intensity
@@ -758,7 +758,7 @@ final class ChilltraxTests: XCTestCase {
 
     @MainActor
     func testHistoryOnlyStoresSongsPlayedForMinimumDuration() async throws {
-        let suiteName = "ChilltraxHistoryThresholdTests.\(UUID().uuidString)"
+        let suiteName = "MactraxHistoryThresholdTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
@@ -820,7 +820,7 @@ final class ChilltraxTests: XCTestCase {
 
     @MainActor
     func testProgressiveHistoryLoading50AtATimeAndFullSearch() {
-        let suiteName = "ChilltraxPaginationTests.\(UUID().uuidString)"
+        let suiteName = "MactraxPaginationTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
@@ -838,7 +838,7 @@ final class ChilltraxTests: XCTestCase {
                     artist: "Artist \(i)",
                     title: "Track \(i)",
                     albumOrMix: "Album \(i)",
-                    stationName: "Chilltrax",
+                    stationName: "Mactrax",
                     stationURLString: StationStream.defaultStream.urlString
                 )
             )
@@ -877,7 +877,7 @@ final class ChilltraxTests: XCTestCase {
 
     @MainActor
     func testAlbumCoversCachedLocallyForHistoryItemsAndDeletedOnClearHistory() async throws {
-        let suiteName = "ChilltraxCoverCacheTests.\(UUID().uuidString)"
+        let suiteName = "MactraxCoverCacheTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
@@ -893,8 +893,8 @@ final class ChilltraxTests: XCTestCase {
             return
         }
 
-        let coverURL1 = URL(string: "https://www.chilltrax.com/images/cover/track1.png")!
-        let coverURL2 = URL(string: "https://www.chilltrax.com/images/cover/track2.jpg")!
+        let coverURL1 = URL(string: "https://www.mactrax.com/images/cover/track1.png")!
+        let coverURL2 = URL(string: "https://www.mactrax.com/images/cover/track2.jpg")!
 
         MockCoverURLProtocol.requestHandler = { request in
             let response = HTTPURLResponse(
@@ -909,7 +909,7 @@ final class ChilltraxTests: XCTestCase {
 
         let sessionConfig = URLSessionConfiguration.ephemeral
         sessionConfig.protocolClasses = [MockCoverURLProtocol.self]
-        let mockClient = ChilltraxClient(session: URLSession(configuration: sessionConfig))
+        let mockClient = MactraxClient(session: URLSession(configuration: sessionConfig))
 
         let store = CompressedHistoryStore(fileURL: historyFile)
         let coverCache = AlbumCoverCache(directoryURL: coversDir, client: mockClient)
@@ -964,8 +964,8 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertNotNil(reloadedCache.cachedImage(for: coverURL2))
 
         // Disabling album cover fetching keeps already fetched covers in cache and prevents fetching new ones
-        state.fetchAlbumCoverFromChilltrax = false
-        let coverURL3 = URL(string: "https://www.chilltrax.com/images/cover/track3.jpg")!
+        state.fetchAlbumCoverFromMactrax = false
+        let coverURL3 = URL(string: "https://www.mactrax.com/images/cover/track3.jpg")!
         MockCoverURLProtocol.requestHandler = { request in
             let urlString = request.url?.absoluteString ?? ""
             if urlString.contains("GetLastTen") {
@@ -1020,7 +1020,7 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertNotNil(coverCache.cachedImage(for: coverURL2))
 
         // Turning "Display and fetch album covers" back on fetches covers for songs without album covers
-        state.fetchAlbumCoverFromChilltrax = true
+        state.fetchAlbumCoverFromMactrax = true
         for _ in 0..<30 {
             if coverCache.isCachedOnDisk(for: coverURL3) && state.historyEntries.first?.coverURL == coverURL3 {
                 break
@@ -1045,7 +1045,7 @@ final class ChilltraxTests: XCTestCase {
 
     @MainActor
     func testSettingsPanelsFitWithoutScrollbars() {
-        let suiteName = "ChilltraxSettingsLayoutTests.\(UUID().uuidString)"
+        let suiteName = "MactraxSettingsLayoutTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
@@ -1127,7 +1127,7 @@ final class ChilltraxTests: XCTestCase {
 
     @MainActor
     func testDockMenuPlayPauseAndSwitchStation() {
-        let suiteName = "ChilltraxDockMenuTests.\(UUID().uuidString)"
+        let suiteName = "MactraxDockMenuTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
@@ -1140,7 +1140,7 @@ final class ChilltraxTests: XCTestCase {
             artist: "Bonobo",
             title: "Kiara",
             albumOrMix: "Black Sands",
-            stationName: "Chilltrax",
+            stationName: "Mactrax",
             stationURLString: StationStream.defaultStream.urlString
         )
         historyStore.save([historyEntry])
@@ -1150,7 +1150,7 @@ final class ChilltraxTests: XCTestCase {
             defaults: defaults,
             startPollingAutomatically: false
         )
-        let delegate = ChilltraxAppDelegate(appState: state)
+        let delegate = MactraxAppDelegate(appState: state)
 
         guard let initialMenu = delegate.applicationDockMenu(NSApplication.shared) else {
             XCTFail("Expected dock menu")
@@ -1217,7 +1217,7 @@ final class ChilltraxTests: XCTestCase {
         XCTAssertFalse(playingMenu.items[1].isEnabled)
         XCTAssertNil(playingMenu.items[1].action)
         XCTAssertEqual(playingMenu.items[2].title, "Pause")
-        XCTAssertEqual(playingMenu.items[3].title, "Switch to Chilltrax")
+        XCTAssertEqual(playingMenu.items[3].title, "Switch to Mactrax")
         XCTAssertTrue(playingMenu.items[4].isSeparatorItem)
         XCTAssertEqual(playingMenu.items[5].title, "Open on Apple Music")
         XCTAssertTrue(playingMenu.items[5].isEnabled)

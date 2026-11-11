@@ -27,15 +27,15 @@ public struct VisualizerView: View {
     }
 
     private var backgroundColor: Color {
-        ChilltraxTheme.visualizerBackground(for: colorScheme)
+        MactraxTheme.visualizerBackground(for: colorScheme)
     }
 
     private var contrastColor: Color {
-        ChilltraxTheme.visualizerContrastColor(for: colorScheme)
+        MactraxTheme.visualizerContrastColor(for: colorScheme)
     }
 
     private var labelBackgroundColor: Color {
-        ChilltraxTheme.visualizerLabelBackground(for: colorScheme)
+        MactraxTheme.visualizerLabelBackground(for: colorScheme)
     }
 
     public var body: some View {
@@ -119,11 +119,11 @@ public struct VisualizerView: View {
     /// low height -> `#808080` gray, mid height -> black/contrast, high/maximum height -> accent red.
     public static func spectrumBarColor(forNormalizedHeight height: CGFloat, colorScheme: ColorScheme = .light) -> Color {
         if height >= 0.62 {
-            return ChilltraxTheme.accentRed
+            return MactraxTheme.accentRed
         } else if height >= 0.26 {
-            return ChilltraxTheme.visualizerContrastColor(for: colorScheme)
+            return MactraxTheme.visualizerContrastColor(for: colorScheme)
         } else {
-            return ChilltraxTheme.visualizerGray
+            return MactraxTheme.visualizerGray
         }
     }
 
@@ -135,11 +135,11 @@ public struct VisualizerView: View {
         colorScheme: ColorScheme = .light
     ) -> Color {
         if barHeight >= 0.62 || trailHeight >= 0.56 {
-            return ChilltraxTheme.accentRed
+            return MactraxTheme.accentRed
         } else if barHeight >= 0.26 || trailHeight >= 0.22 {
-            return ChilltraxTheme.visualizerContrastColor(for: colorScheme)
+            return MactraxTheme.visualizerContrastColor(for: colorScheme)
         } else {
-            return ChilltraxTheme.visualizerGray
+            return MactraxTheme.visualizerGray
         }
     }
 
@@ -271,7 +271,7 @@ public struct VisualizerView: View {
         let usableAmplitude = max(4, (size.height - verticalPadding * 2) / 2.0)
         let steps = max(96, Int(size.width / 2.5))
         let secondaryWaveColor = contrastColor
-        let tertiaryWaveColor = ChilltraxTheme.visualizerGray
+        let tertiaryWaveColor = MactraxTheme.visualizerGray
 
         let clampedLevels = levels.isEmpty ? [CGFloat(0.07)] : levels.map { max(0.07, min(1.0, $0)) }
         let averageLevel = clampedLevels.reduce(0, +) / CGFloat(clampedLevels.count)
@@ -413,12 +413,12 @@ public struct VisualizerView: View {
 
         context.fill(
             fillPath,
-            with: .color(ChilltraxTheme.accentRed.opacity(baseFadeOpacity))
+            with: .color(MactraxTheme.accentRed.opacity(baseFadeOpacity))
         )
 
         context.stroke(
             redWavePath,
-            with: .color(ChilltraxTheme.accentRed.opacity(isPlaying ? 1.0 : 0.65)),
+            with: .color(MactraxTheme.accentRed.opacity(isPlaying ? 1.0 : 0.65)),
             style: StrokeStyle(lineWidth: redLineWidth, lineCap: .round, lineJoin: .round)
         )
     }

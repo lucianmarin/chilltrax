@@ -19,11 +19,11 @@ public struct StationDiscoveryResult: Equatable, Sendable {
     }
 }
 
-public final class ChilltraxClient: Sendable {
-    public static let websiteURL = RadioStation.chilltrax.websiteURL
-    public static let songInfoURL = URL(string: RadioStation.chilltrax.defaultAPIEndpoints.songInfoURLString)!
-    public static let coverImageURL = URL(string: RadioStation.chilltrax.defaultAPIEndpoints.coverImageURLString)!
-    public static let lastTenURL = URL(string: RadioStation.chilltrax.defaultAPIEndpoints.lastTenURLString)!
+public final class MactraxClient: Sendable {
+    public static let websiteURL = RadioStation.mactrax.websiteURL
+    public static let songInfoURL = URL(string: RadioStation.mactrax.defaultAPIEndpoints.songInfoURLString)!
+    public static let coverImageURL = URL(string: RadioStation.mactrax.defaultAPIEndpoints.coverImageURLString)!
+    public static let lastTenURL = URL(string: RadioStation.mactrax.defaultAPIEndpoints.lastTenURLString)!
 
     public static let radioDanzWebsiteURL = RadioStation.radioDanz.websiteURL
     public static let radioDanzSongInfoURL = URL(string: RadioStation.radioDanz.defaultAPIEndpoints.songInfoURLString)!
@@ -47,7 +47,7 @@ public final class ChilltraxClient: Sendable {
     // MARK: - Current Song & Cover Art
 
     public func fetchNowPlaying(
-        station: RadioStation = .chilltrax,
+        station: RadioStation = .mactrax,
         endpoints: StationAPIEndpoints? = nil,
         fetchAlbumCover: Bool
     ) async throws -> SongMetadata {
@@ -55,7 +55,7 @@ public final class ChilltraxClient: Sendable {
         let infoURL = resolvedEndpoints.songInfoURL ?? station.defaultAPIEndpoints.songInfoURL!
         async let infoData = fetchData(from: infoURL)
         let rawInfo = try await infoData
-        let decodedInfo = try JSONDecoder().decode(ChilltraxNowPlayingResponse.self, from: rawInfo)
+        let decodedInfo = try JSONDecoder().decode(MactraxNowPlayingResponse.self, from: rawInfo)
 
         var coverURLString: String?
         if fetchAlbumCover {
@@ -69,13 +69,13 @@ public final class ChilltraxClient: Sendable {
     }
 
     public func fetchCurrentAlbumCoverURLString(
-        station: RadioStation = .chilltrax,
+        station: RadioStation = .mactrax,
         endpoints: StationAPIEndpoints? = nil
     ) async throws -> String? {
         let resolvedEndpoints = endpoints ?? station.defaultAPIEndpoints
         let coverURL = resolvedEndpoints.coverImageURL ?? station.defaultAPIEndpoints.coverImageURL!
         let data = try await fetchData(from: coverURL)
-        let response = try JSONDecoder().decode(ChilltraxCoverResponse.self, from: data)
+        let response = try JSONDecoder().decode(MactraxCoverResponse.self, from: data)
         guard let rawCover = response.cover?.trimmingCharacters(in: .whitespacesAndNewlines),
               !rawCover.isEmpty else {
             return nil
@@ -89,16 +89,16 @@ public final class ChilltraxClient: Sendable {
     }
 
     public func fetchLastTenTracks(
-        station: RadioStation = .chilltrax,
+        station: RadioStation = .mactrax,
         endpoints: StationAPIEndpoints? = nil
     ) async throws -> [SongMetadata] {
         let resolvedEndpoints = endpoints ?? station.defaultAPIEndpoints
         let url = resolvedEndpoints.lastTenURL ?? station.defaultAPIEndpoints.lastTenURL!
         let data = try await fetchData(from: url)
-        let items = try JSONDecoder().decode([ChilltraxLastTenItem].self, from: data)
+        let items = try JSONDecoder().decode([MactraxLastTenItem].self, from: data)
         return items.compactMap { item in
-            let artist = ChilltraxNowPlayingResponse.decodeHTMLEntities(item.artist ?? "")
-            let title = ChilltraxNowPlayingResponse.decodeHTMLEntities(item.title ?? "")
+            let artist = MactraxNowPlayingResponse.decodeHTMLEntities(item.artist ?? "")
+            let title = MactraxNowPlayingResponse.decodeHTMLEntities(item.title ?? "")
             guard !artist.isEmpty || !title.isEmpty else { return nil }
             let rawPicture = item.picture?.trimmingCharacters(in: .whitespacesAndNewlines)
             let resolvedCover: String?
@@ -115,7 +115,7 @@ public final class ChilltraxClient: Sendable {
             return SongMetadata(
                 artist: artist,
                 title: title,
-                albumOrMix: ChilltraxNowPlayingResponse.decodeHTMLEntities(item.mix ?? ""),
+                albumOrMix: MactraxNowPlayingResponse.decodeHTMLEntities(item.mix ?? ""),
                 year: item.year ?? "",
                 buyURLString: item.buycd ?? "",
                 coverURLString: resolvedCover
@@ -123,9 +123,9 @@ public final class ChilltraxClient: Sendable {
         }
     }
 
-    // MARK: - Discover Broadcast Streams & API URLs from chilltrax.com and radiodanz.com
+    // MARK: - Discover Broadcast Streams & API URLs from mactrax.com and radiodanz.com
 
-    public func discoverBroadcastStreamsFromWebsite(for station: RadioStation = .chilltrax) async throws -> [StationStream] {
+    public func discoverBroadcastStreamsFromWebsite(for station: RadioStation = .mactrax) async throws -> [StationStream] {
         let result = try await discoverStationConfiguration(for: station)
         return result.streams
     }
@@ -156,7 +156,7 @@ public final class ChilltraxClient: Sendable {
         )
     }
 
-    /// Scans both `chilltrax.com` and `radiodanz.com` concurrently for broadcast streams and API URL changes.
+    /// Scans both `mactrax.com` and `radiodanz.com` concurrently for broadcast streams and API URL changes.
     public func discoverAllStationsConfiguration(
         previousEndpointsByStation: [RadioStation: StationAPIEndpoints] = [:]
     ) async throws -> [RadioStation: StationDiscoveryResult] {
@@ -182,7 +182,7 @@ public final class ChilltraxClient: Sendable {
         return results
     }
 
-    public static func parseAPIEndpoints(fromHTML html: String, station: RadioStation = .chilltrax) -> StationAPIEndpoints {
+    public static func parseAPIEndpoints(fromHTML html: String, station: RadioStation = .mactrax) -> StationAPIEndpoints {
         var endpoints = station.defaultAPIEndpoints
 
         func resolveEndpoint(_ rawPath: String) -> String {
@@ -228,7 +228,7 @@ public final class ChilltraxClient: Sendable {
         return endpoints
     }
 
-    public static func parseBroadcastStreams(fromHTML html: String, station: RadioStation = .chilltrax) -> [StationStream] {
+    public static func parseBroadcastStreams(fromHTML html: String, station: RadioStation = .mactrax) -> [StationStream] {
         var streams: [StationStream] = []
         var seenURLs = Set<String>()
         let stationTitle = station.title
@@ -256,7 +256,7 @@ public final class ChilltraxClient: Sendable {
                                 name: "\(stationTitle) — Web Player Live Stream (128Kbps MP3 HTTPS)",
                                 urlString: rawURL,
                                 formatDetails: "128Kbps MP3 • HTTPS Direct",
-                                isChilltraxOfficial: true,
+                                isMactraxOfficial: true,
                                 station: station
                             )
                         )
@@ -279,12 +279,12 @@ public final class ChilltraxClient: Sendable {
                 let rawLabel = String(html[labelRange])
                     .replacingOccurrences(of: #"<[^>]+>"#, with: "", options: .regularExpression)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
-                let label = ChilltraxNowPlayingResponse.decodeHTMLEntities(rawLabel)
+                let label = MactraxNowPlayingResponse.decodeHTMLEntities(rawLabel)
 
                 let lowerHref = href.lowercased()
                 let isStreamLink = lowerHref.contains("streams.electronicmusicradiogroup.org")
-                    || lowerHref.contains("chilltrax.com/listen")
-                    || lowerHref.contains("streamssleu.chilltrax.com")
+                    || lowerHref.contains("mactrax.com/listen")
+                    || lowerHref.contains("streamssleu.mactrax.com")
                     || lowerHref.contains("radiodanz.com/results")
                     || lowerHref.contains("streamssl.radiodanz.com")
                     || lowerHref.hasSuffix(".pls")
@@ -302,7 +302,7 @@ public final class ChilltraxClient: Sendable {
                         name: displayName,
                         urlString: href,
                         formatDetails: formatDetails,
-                        isChilltraxOfficial: true,
+                        isMactraxOfficial: true,
                         station: station
                     )
                 )
@@ -311,16 +311,16 @@ public final class ChilltraxClient: Sendable {
 
         // 3. Ensure direct SSL stream is also available for the station
         switch station {
-        case .chilltrax:
-            if seenURLs.contains("https://www.chilltrax.com/listen") || seenURLs.contains("https://www.chilltrax.com/listen/?mode=redirect") {
+        case .mactrax:
+            if seenURLs.contains("https://www.mactrax.com/listen") || seenURLs.contains("https://www.mactrax.com/listen/?mode=redirect") {
                 appendStream(
                     StationStream(
-                        id: "https://streamssleu.chilltrax.com/stream?sid=1",
-                        name: "Chilltrax — Direct SSL Stream (128Kbps MP3)",
-                        urlString: "https://streamssleu.chilltrax.com/stream?sid=1",
+                        id: "https://streamssleu.mactrax.com/stream?sid=1",
+                        name: "Mactrax — Direct SSL Stream (128Kbps MP3)",
+                        urlString: "https://streamssleu.mactrax.com/stream?sid=1",
                         formatDetails: "128Kbps MP3 • Direct SSL",
-                        isChilltraxOfficial: true,
-                        station: .chilltrax
+                        isMactraxOfficial: true,
+                        station: .mactrax
                     )
                 )
             }
@@ -333,7 +333,7 @@ public final class ChilltraxClient: Sendable {
                         name: "Radio Danz — Direct SSL Stream (128Kbps MP3)",
                         urlString: "https://streamssl.radiodanz.com/live",
                         formatDetails: "128Kbps MP3 • Direct SSL",
-                        isChilltraxOfficial: true,
+                        isMactraxOfficial: true,
                         station: .radioDanz
                     )
                 )
@@ -350,16 +350,16 @@ public final class ChilltraxClient: Sendable {
         let urlString = originalURL.absoluteString.trimmingCharacters(in: .whitespacesAndNewlines)
         let lower = urlString.lowercased()
 
-        // Direct chilltrax.com/listen or any .pls playlist URL
-        if lower == "https://www.chilltrax.com/listen"
-            || lower == "https://www.chilltrax.com/listen/"
+        // Direct mactrax.com/listen or any .pls playlist URL
+        if lower == "https://www.mactrax.com/listen"
+            || lower == "https://www.mactrax.com/listen/"
             || lower.hasSuffix(".pls")
             || lower.contains(".pls?") {
             if let resolved = await resolvePLSPlaylist(from: originalURL) {
                 return resolved
             }
-            if lower.contains("chilltrax.com/listen") {
-                return URL(string: "https://streamssleu.chilltrax.com/stream?sid=1") ?? originalURL
+            if lower.contains("mactrax.com/listen") {
+                return URL(string: "https://streamssleu.mactrax.com/stream?sid=1") ?? originalURL
             }
             if lower.contains("radiodanz.com") {
                 return URL(string: "https://streamssl.radiodanz.com/live") ?? originalURL
@@ -464,7 +464,7 @@ public final class ChilltraxClient: Sendable {
 
     private func fetchData(from url: URL) async throws -> Data {
         var request = URLRequest(url: url)
-        request.setValue("ChilltraxMacOS/1.2 (macOS 14.0)", forHTTPHeaderField: "User-Agent")
+        request.setValue("MactraxMacOS/1.2 (macOS 14.0)", forHTTPHeaderField: "User-Agent")
         request.setValue("*/*", forHTTPHeaderField: "Accept")
         let (data, response) = try await session.data(for: request)
         if let httpResponse = response as? HTTPURLResponse,

@@ -15,7 +15,7 @@ public struct CompactPlayerView: View {
             // Main Compact Player Card
             VStack(spacing: 12) {
                 HStack(alignment: .center, spacing: 14) {
-                    if appState.fetchAlbumCoverFromChilltrax {
+                    if appState.fetchAlbumCoverFromMactrax {
                         albumArtworkView
                     }
 
@@ -30,7 +30,7 @@ public struct CompactPlayerView: View {
 
                         Text(displayedSongArtist)
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(ChilltraxTheme.accentRed)
+                            .foregroundStyle(MactraxTheme.accentRed)
                             .lineLimit(1)
 
                         songInfoSeparator
@@ -44,7 +44,7 @@ public struct CompactPlayerView: View {
                         if let error = appState.radioPlayer.errorMessage {
                             Text(error)
                                 .font(.system(size: 11))
-                                .foregroundStyle(ChilltraxTheme.accentRed)
+                                .foregroundStyle(MactraxTheme.accentRed)
                                 .lineLimit(1)
                         }
                     }
@@ -56,12 +56,12 @@ public struct CompactPlayerView: View {
                     }) {
                         ZStack {
                             Circle()
-                                .fill(ChilltraxTheme.accentRed)
+                                .fill(MactraxTheme.accentRed)
                                 .frame(width: 44, height: 44)
 
                             Image(systemName: appState.radioPlayer.isPlaying ? "pause.fill" : "play.fill")
                                 .font(.system(size: 17, weight: .bold))
-                                .foregroundStyle(ChilltraxTheme.visualizerBackground(for: colorScheme))
+                                .foregroundStyle(MactraxTheme.visualizerBackground(for: colorScheme))
                                 .offset(x: appState.radioPlayer.isPlaying ? 0 : 1.5)
                         }
                     }
@@ -113,12 +113,12 @@ public struct CompactPlayerView: View {
             Spacer(minLength: 0)
         }
         .frame(
-            width: ChilltraxTheme.compactWidth,
+            width: MactraxTheme.compactWidth,
             height: currentContentHeight,
             alignment: .top
         )
         .clipped()
-        .tint(ChilltraxTheme.accentRed)
+        .tint(MactraxTheme.accentRed)
         .onChange(of: appState.isHistoryExpanded) { _, isExpanded in
             if isExpanded {
                 DispatchQueue.main.async {
@@ -185,7 +185,7 @@ public struct CompactPlayerView: View {
     }
 
     private var currentContentHeight: CGFloat {
-        ChilltraxTheme.contentHeight(
+        MactraxTheme.contentHeight(
             isExpanded: appState.isHistoryExpanded,
             resultCount: appState.filteredHistoryEntries.count,
             showSearchBar: appState.isSearchBarVisible,
@@ -226,7 +226,7 @@ public struct CompactPlayerView: View {
             if isSongPlaying, let coverURL = appState.currentSong.coverURL {
                 CachedCurrentSongCoverView(
                     url: coverURL,
-                    allowFetchingNewCover: appState.fetchAlbumCoverFromChilltrax,
+                    allowFetchingNewCover: appState.fetchAlbumCoverFromMactrax,
                     coverCache: appState.coverCache
                 ) {
                     defaultStationArtwork
@@ -245,10 +245,10 @@ public struct CompactPlayerView: View {
 
     private var defaultStationArtwork: some View {
         ZStack {
-            ChilltraxTheme.visualizerBackground(for: colorScheme)
+            MactraxTheme.visualizerBackground(for: colorScheme)
             Image(systemName: "music.note")
                 .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(ChilltraxTheme.visualizerContrastColor(for: colorScheme))
+                .foregroundStyle(MactraxTheme.visualizerContrastColor(for: colorScheme))
         }
     }
 
@@ -319,11 +319,11 @@ public struct CompactPlayerView: View {
         case .playing:
             return .green
         case .buffering:
-            return ChilltraxTheme.accentRed
+            return MactraxTheme.accentRed
         case .paused, .idle:
             return .secondary
         case .error:
-            return ChilltraxTheme.accentRed
+            return MactraxTheme.accentRed
         }
     }
 }
