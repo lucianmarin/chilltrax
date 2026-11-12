@@ -34,13 +34,97 @@ public final class RadioPlayer: NSObject, ObservableObject {
         }
     }
 
+    /// Controls whether the player window is currently visible on screen (not minimized, hidden, or occluded).
+    public var isWindowVisible: Bool = true {
+        didSet {
+            guard isWindowVisible != oldValue else { return }
+            updateVisualizerTimerState()
+        }
+    }
+
     nonisolated public static let visualizerBarCount = 56
 
+    /// Precomputed per-bar trigonometric & envelope tables for `visualizerBarCount` (56) bars.
+    private struct BarLookupTable: Sendable {
+        let count: Int
+        let norm: [Double]
+        let spectralWeight: [Double]
+        let envelope: [Double]
+        let bassWeight: [Double]
+        let sin042: [Double]
+        let cos042: [Double]
+        let sin064: [Double]
+        let cos064: [Double]
+        let sin032: [Double]
+        let cos032: [Double]
+        let sin055: [Double]
+        let cos055: [Double]
+        let sin035: [Double]
+        let cos035: [Double]
+
+        init(count: Int) {
+            self.count = count
+            var norm = [Double](repeating: 0, count: count)
+            var spectralWeight = [Double](repeating: 0, count: count)
+            var envelope = [Double](repeating: 0, count: count)
+            var bassWeight = [Double](repeating: 0, count: count)
+            var sin042 = [Double](repeating: 0, count: count)
+            var cos042 = [Double](repeating: 0, count: count)
+            var sin064 = [Double](repeating: 0, count: count)
+            var cos064 = [Double](repeating: 0, count: count)
+            var sin032 = [Double](repeating: 0, count: count)
+            var cos032 = [Double](repeating: 0, count: count)
+            var sin055 = [Double](repeating: 0, count: count)
+            var cos055 = [Double](repeating: 0, count: count)
+            var sin035 = [Double](repeating: 0, count: count)
+            var cos035 = [Double](repeating: 0, count: count)
+
+            let denom = Double(max(1, count - 1))
+            for i in 0..<count {
+                let n = Double(i) / denom
+                let idx = Double(i)
+                let sinPiN = sin(n * .pi)
+                norm[i] = n
+                spectralWeight[i] = sinPiN * 0.22 + 0.78
+                envelope[i] = sinPiN * 0.42 + 0.58
+                bassWeight[i] = 1.0 - n * 0.28
+                sin042[i] = sin(idx * 0.42)
+                cos042[i] = cos(idx * 0.42)
+                sin064[i] = sin(idx * 0.64)
+                cos064[i] = cos(idx * 0.64)
+                sin032[i] = sin(idx * 0.32)
+                cos032[i] = cos(idx * 0.32)
+                sin055[i] = sin(idx * 0.55)
+                cos055[i] = cos(idx * 0.55)
+                sin035[i] = sin(idx * 0.35)
+                cos035[i] = cos(idx * 0.35)
+            }
+
+            self.norm = norm
+            self.spectralWeight = spectralWeight
+            self.envelope = envelope
+            self.bassWeight = bassWeight
+            self.sin042 = sin042
+            self.cos042 = cos042
+            self.sin064 = sin064
+            self.cos064 = cos064
+            self.sin032 = sin032
+            self.cos032 = cos032
+            self.sin055 = sin055
+            self.cos055 = cos055
+            self.sin035 = sin035
+            self.cos035 = cos035
+        }
+    }
+
+    nonisolated private static let defaultBarTable = BarLookupTable(count: RadioPlayer.visualizerBarCount)
+
     /// 56 normalized frequency/amplitude bins in `0.0...1.0` updated at 30fps for Waveform & Spectrum visualizers.
-    @Published public private(set) var visualizerLevels: [CGFloat] = Array(repeating: 0.08, count: RadioPlayer.visualizerBarCount)
+    /// Changes are coalesced into a single `objectWillChange` emission per visualizer tick.
+    public private(set) var visualizerLevels: [CGFloat] = Array(repeating: 0.08, count: RadioPlayer.visualizerBarCount)
     /// Trailing envelope levels that decay behind `visualizerLevels` to render a subtle movement fade on Spectrum bars.
-    @Published public private(set) var visualizerTrailLevels: [CGFloat] = Array(repeating: 0.08, count: RadioPlayer.visualizerBarCount)
-    @Published public private(set) var waveformPhase: Double = 0.0
+    public private(set) var visualizerTrailLevels: [CGFloat] = Array(repeating: 0.08, count: RadioPlayer.visualizerBarCount)
+    public private(set) var waveformPhase: Double = 0.0
 
     public var onICYMetadataReceived: ((SongMetadata) -> Void)?
 
@@ -208,46 +292,63 @@ public final class RadioPlayer: NSObject, ObservableObject {
         let chunkSize = max(1, samples.count / count)
         var bins = [CGFloat]()
         bins.reserveCapacity(count)
+        let useDefaultTable = (count == defaultBarTable.count)
+        let denom = Double(max(1, count - 1))
 
-        for i in 0..<count {
-            let start = min(samples.count - 1, i * chunkSize)
-            let end = min(samples.count, start + chunkSize)
-            let sliceCount = max(1, end - start)
+        samples.withUnsafeBufferPointer { buffer in
+            guard let base = buffer.baseAddress else { return }
+            for i in 0..<count {
+                let start = min(samples.count - 1, i * chunkSize)
+                let end = min(samples.count, start + chunkSize)
+                let sliceCount = max(1, end - start)
 
-            var bandRMS: Float = 0
-            var bandPeak: Float = 0
-            samples.withUnsafeBufferPointer { buffer in
-                guard let base = buffer.baseAddress else { return }
+                var bandRMS: Float = 0
+                var bandPeak: Float = 0
                 vDSP_rmsqv(base + start, 1, &bandRMS, vDSP_Length(sliceCount))
                 vDSP_maxmgv(base + start, 1, &bandPeak, vDSP_Length(sliceCount))
-            }
 
-            // Combine band energy, peak transient, and overall musical intensity
-            let norm = Double(i) / Double(max(1, count - 1))
-            let spectralWeight = sin(norm * .pi) * 0.22 + 0.78
-            let combined = (Double(bandRMS) * 2.45 + Double(bandPeak) * 0.95) * 0.68 + overallGain * 0.32
-            let scaled = combined * spectralWeight
-            let clamped = max(0.07, min(1.0, scaled))
-            bins.append(CGFloat(clamped))
+                // Combine band energy, peak transient, and overall musical intensity
+                let spectralWeight: Double
+                if useDefaultTable {
+                    spectralWeight = defaultBarTable.spectralWeight[i]
+                } else {
+                    let norm = Double(i) / denom
+                    spectralWeight = sin(norm * .pi) * 0.22 + 0.78
+                }
+                let combined = (Double(bandRMS) * 2.45 + Double(bandPeak) * 0.95) * 0.68 + overallGain * 0.32
+                let scaled = combined * spectralWeight
+                let clamped = max(0.07, min(1.0, scaled))
+                bins.append(CGFloat(clamped))
+            }
         }
 
         return bins
     }
 
     public func updateVisualizerWithAudioSamples(_ samples: [Float]) {
-        let computed = Self.computeSpectrumLevels(fromPCM: samples, count: visualizerLevels.count)
+        let count = visualizerLevels.count
+        let computed = Self.computeSpectrumLevels(fromPCM: samples, count: count)
         lastRealAudioLevels = computed
         lastRealAudioTimestamp = ProcessInfo.processInfo.systemUptime
 
-        var smoothed = [CGFloat]()
-        var trails = [CGFloat]()
-        smoothed.reserveCapacity(visualizerLevels.count)
-        trails.reserveCapacity(visualizerLevels.count)
-        let peakComputed = computed.max() ?? 0.07
-        let prevAvg = visualizerLevels.reduce(0, +) / CGFloat(max(1, visualizerLevels.count))
+        var peakComputed: CGFloat = 0.07
+        for val in computed where val > peakComputed {
+            peakComputed = val
+        }
+        var prevSum: CGFloat = 0
+        for val in visualizerLevels {
+            prevSum += val
+        }
+        let prevAvg = prevSum / CGFloat(max(1, count))
         let isPunchyTransient = (peakComputed - prevAvg) > 0.22 || peakComputed > 0.78
 
-        for i in 0..<visualizerLevels.count {
+        objectWillChange.send()
+        if visualizerTrailLevels.count != count {
+            visualizerTrailLevels = Array(repeating: 0.08, count: count)
+        }
+
+        var sumSmoothed: CGFloat = 0
+        for i in 0..<count {
             let prev = visualizerLevels[i]
             var target = computed[i]
             if isPunchyTransient && target >= peakComputed * 0.82 {
@@ -257,18 +358,17 @@ public final class RadioPlayer: NSObject, ObservableObject {
             }
             let blend: CGFloat = target > prev ? (target > 0.78 ? 0.90 : 0.68) : 0.64
             let nextVal = prev * (1.0 - blend) + target * blend
-            smoothed.append(nextVal)
+            visualizerLevels[i] = nextVal
+            sumSmoothed += nextVal
 
-            let prevTrail = i < visualizerTrailLevels.count ? visualizerTrailLevels[i] : prev
+            let prevTrail = visualizerTrailLevels[i]
             let retention: CGFloat = 0.88
             let decayedTrail = prevTrail * retention + nextVal * (1.0 - retention)
             let movementBoost = abs(nextVal - prev) * 0.75
-            trails.append(max(nextVal, min(1.0, decayedTrail + movementBoost)))
+            visualizerTrailLevels[i] = max(nextVal, min(1.0, decayedTrail + movementBoost))
         }
-        visualizerLevels = smoothed
-        visualizerTrailLevels = trails
 
-        let averageIntensity = Double(smoothed.reduce(0, +)) / Double(max(1, smoothed.count))
+        let averageIntensity = Double(sumSmoothed) / Double(max(1, count))
         waveformPhase += 0.07 + averageIntensity * 0.24
     }
 
@@ -277,7 +377,7 @@ public final class RadioPlayer: NSObject, ObservableObject {
     }
 
     private func updateVisualizerTimerState() {
-        let shouldRun = isVisualizerEnabled && isPlaying && (status == .playing || status == .buffering)
+        let shouldRun = isVisualizerEnabled && isWindowVisible && isPlaying && (status == .playing || status == .buffering)
         if shouldRun {
             startVisualizerTimer()
         } else {
@@ -287,11 +387,14 @@ public final class RadioPlayer: NSObject, ObservableObject {
 
     private func startVisualizerTimer() {
         guard visualizerTimer == nil else { return }
-        visualizerTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
+        let interval = 1.0 / 30.0
+        let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
                 self?.tickVisualizer()
             }
         }
+        timer.tolerance = interval * 0.15
+        visualizerTimer = timer
     }
 
     private func stopVisualizerTimer() {
@@ -300,18 +403,27 @@ public final class RadioPlayer: NSObject, ObservableObject {
     }
 
     private func resetVisualizerLevels() {
-        let idleLevels = Array(repeating: CGFloat(0.08), count: Self.visualizerBarCount)
-        if visualizerLevels != idleLevels {
-            visualizerLevels = idleLevels
+        let idleValue: CGFloat = 0.08
+        let needsReset = visualizerLevels.contains { $0 != idleValue }
+            || visualizerTrailLevels.contains { $0 != idleValue }
+        guard needsReset else { return }
+        objectWillChange.send()
+        for i in 0..<visualizerLevels.count {
+            visualizerLevels[i] = idleValue
         }
-        if visualizerTrailLevels != idleLevels {
-            visualizerTrailLevels = idleLevels
+        for i in 0..<visualizerTrailLevels.count {
+            visualizerTrailLevels[i] = idleValue
         }
     }
 
     public func tickVisualizer() {
         let count = visualizerLevels.count
+        if visualizerTrailLevels.count != count {
+            visualizerTrailLevels = Array(repeating: 0.08, count: count)
+        }
         let activelyStreaming = isPlaying && (status == .playing || status == .buffering)
+
+        objectWillChange.send()
 
         if activelyStreaming {
             // If real PCM audio tap samples arrived recently, let the live audio tap drive levels
@@ -320,65 +432,108 @@ public final class RadioPlayer: NSObject, ObservableObject {
                let liveLevels = lastRealAudioLevels,
                liveLevels.count == count,
                (now - lastRealAudioTimestamp) < 0.25 {
-                var nextLevels = [CGFloat]()
-                var nextTrails = [CGFloat]()
-                nextLevels.reserveCapacity(count)
-                nextTrails.reserveCapacity(count)
+                var sumLevels: CGFloat = 0
                 for i in 0..<count {
                     let prev = visualizerLevels[i]
                     let target = liveLevels[i]
                     let blend: CGFloat = target > prev ? 0.62 : 0.60
                     let nextVal = prev * (1.0 - blend) + target * blend
-                    nextLevels.append(nextVal)
+                    visualizerLevels[i] = nextVal
+                    sumLevels += nextVal
 
-                    let prevTrail = i < visualizerTrailLevels.count ? visualizerTrailLevels[i] : prev
+                    let prevTrail = visualizerTrailLevels[i]
                     let retention: CGFloat = 0.88
                     let decayedTrail = prevTrail * retention + nextVal * (1.0 - retention)
                     let movementBoost = abs(nextVal - prev) * 0.75
-                    nextTrails.append(max(nextVal, min(1.0, decayedTrail + movementBoost)))
+                    visualizerTrailLevels[i] = max(nextVal, min(1.0, decayedTrail + movementBoost))
                 }
-                visualizerLevels = nextLevels
-                visualizerTrailLevels = nextTrails
-                let avg = Double(nextLevels.reduce(0, +)) / Double(max(1, count))
+                let avg = Double(sumLevels) / Double(max(1, count))
                 waveformPhase += 0.07 + avg * 0.24
                 return
             }
 
-            var nextLevels = [CGFloat]()
-            var nextTrails = [CGFloat]()
-            nextLevels.reserveCapacity(count)
-            nextTrails.reserveCapacity(count)
             let t = waveformPhase
+            let table = Self.defaultBarTable
+            let useTable = (count == table.count)
 
             // Balanced musical baseline in lower/mid area with sharp punch transients that reach 1.0 on beats
             let phraseSwell = (sin(t * 0.45) + 1.0) * 0.5 * 0.35 + 0.52
             let beatKick = pow((sin(t * 1.95) + 1.0) * 0.5, 3.8)
             let snarePunch = pow((cos(t * 1.30 - 0.55) + 1.0) * 0.5, 4.4)
             let punchTransient = max(beatKick, snarePunch * 0.95)
+            let punchTransientScaled = pow(punchTransient, 1.25) * 1.18
             // Focal bar position shifts across the spectrum on each beat so punch peaks feel dynamic
             let punchCenter = 0.14 + 0.72 * ((sin(t * 0.63) + 1.0) * 0.5)
 
-            for i in 0..<count {
-                let norm = Double(i) / Double(max(1, count - 1))
-                // Smooth center-weighted envelope with consistent variation across adjacent red/black/gray bars
-                let envelope = sin(norm * .pi) * 0.42 + 0.58
-                let bassPulse = beatKick * (1.0 - norm * 0.28)
-                let midWave = pow((sin(t * 2.5 + Double(i) * 0.42) + 1.0) * 0.5, 1.55)
-                let harmonic = pow((cos(t * 3.9 - Double(i) * 0.64) + 1.0) * 0.5, 1.65)
-                let shimmer = pow((sin(t * 5.8 + Double(i) * 0.32) + 1.0) * 0.5, 1.75)
+            // Precompute per-frame trig components for angle-addition identities
+            let sinT25 = sin(t * 2.5)
+            let cosT25 = cos(t * 2.5)
+            let sinT39 = sin(t * 3.9)
+            let cosT39 = cos(t * 3.9)
+            let sinT58 = sin(t * 5.8)
+            let cosT58 = cos(t * 5.8)
+            let sinT32 = sin(t * 3.2)
+            let cosT32 = cos(t * 3.2)
+            let sinT20 = sin(t * 2.0)
+            let cosT20 = cos(t * 2.0)
 
+            var sumLevels: CGFloat = 0
+            let isBuffering = (status == .buffering)
+
+            for i in 0..<count {
                 let rawLevel: Double
-                if status == .buffering {
-                    rawLevel = 0.12 + 0.18 * sin(t * 2.0 + Double(i) * 0.35)
+                if isBuffering {
+                    let sinBuffering: Double
+                    if useTable {
+                        // sin(t * 2.0 + i * 0.35)
+                        sinBuffering = sinT20 * table.cos035[i] + cosT20 * table.sin035[i]
+                    } else {
+                        sinBuffering = sin(t * 2.0 + Double(i) * 0.35)
+                    }
+                    rawLevel = 0.12 + 0.18 * sinBuffering
                 } else {
+                    let norm: Double
+                    let envelope: Double
+                    let bassPulse: Double
+                    let sinMid: Double
+                    let cosHarm: Double
+                    let sinShim: Double
+                    let sinRip: Double
+
+                    if useTable {
+                        norm = table.norm[i]
+                        envelope = table.envelope[i]
+                        bassPulse = beatKick * table.bassWeight[i]
+                        // sin(t * 2.5 + i * 0.42)
+                        sinMid = sinT25 * table.cos042[i] + cosT25 * table.sin042[i]
+                        // cos(t * 3.9 - i * 0.64)
+                        cosHarm = cosT39 * table.cos064[i] + sinT39 * table.sin064[i]
+                        // sin(t * 5.8 + i * 0.32)
+                        sinShim = sinT58 * table.cos032[i] + cosT58 * table.sin032[i]
+                        // sin(i * 0.55 + t * 3.2)
+                        sinRip = table.sin055[i] * cosT32 + table.cos055[i] * sinT32
+                    } else {
+                        norm = Double(i) / Double(max(1, count - 1))
+                        envelope = sin(norm * .pi) * 0.42 + 0.58
+                        bassPulse = beatKick * (1.0 - norm * 0.28)
+                        sinMid = sin(t * 2.5 + Double(i) * 0.42)
+                        cosHarm = cos(t * 3.9 - Double(i) * 0.64)
+                        sinShim = sin(t * 5.8 + Double(i) * 0.32)
+                        sinRip = sin(Double(i) * 0.55 + t * 3.2)
+                    }
+
+                    let midWave = pow(max(0.0, (sinMid + 1.0) * 0.5), 1.55)
+                    let harmonic = pow(max(0.0, (cosHarm + 1.0) * 0.5), 1.65)
+                    let shimmer = pow(max(0.0, (sinShim + 1.0) * 0.5), 1.75)
+
                     let baseCombined = (bassPulse * 0.38 + midWave * 0.28 + harmonic * 0.16 + shimmer * 0.10)
                     let baseLevel = baseCombined * envelope * phraseSwell
 
                     // Sharp localized punch surge on beats so peak bars reach 1.0 while overall average stays low/mid
                     let distFromPunch = abs(norm - punchCenter)
                     let punchFocus = max(0.0, 1.0 - distFromPunch * 2.6)
-                    let harmonicRipple = (sin(Double(i) * 0.55 + t * 3.2) + 1.0) * 0.5 * 0.22 + 0.84
-                    let punchSurge = pow(punchTransient, 1.25) * punchFocus * harmonicRipple * 1.18
+                    let harmonicRipple = (sinRip + 1.0) * 0.5 * 0.22 + 0.84
+                    let punchSurge = punchTransientScaled * punchFocus * harmonicRipple
                     rawLevel = max(baseLevel, min(1.0, baseLevel * 0.45 + punchSurge))
                 }
 
@@ -392,35 +547,28 @@ public final class RadioPlayer: NSObject, ObservableObject {
                     blend = 0.65
                 }
                 let smoothed = CGFloat(max(0.07, min(1.0, previous * (1.0 - blend) + clamped * blend)))
-                nextLevels.append(smoothed)
+                visualizerLevels[i] = smoothed
+                sumLevels += smoothed
 
-                let prevTrail = i < visualizerTrailLevels.count ? visualizerTrailLevels[i] : CGFloat(previous)
+                let prevTrail = visualizerTrailLevels[i]
                 let retention: CGFloat = 0.88
                 let decayedTrail = prevTrail * retention + smoothed * (1.0 - retention)
                 let movementBoost = abs(smoothed - CGFloat(previous)) * 0.75
-                nextTrails.append(max(smoothed, min(1.0, decayedTrail + movementBoost)))
+                visualizerTrailLevels[i] = max(smoothed, min(1.0, decayedTrail + movementBoost))
             }
-            visualizerLevels = nextLevels
-            visualizerTrailLevels = nextTrails
-            let averageIntensity = Double(nextLevels.reduce(0, +)) / Double(max(1, count))
+            let averageIntensity = Double(sumLevels) / Double(max(1, count))
             let speed = status == .playing ? (0.08 + averageIntensity * 0.22) : 0.07
             waveformPhase += speed
         } else {
             waveformPhase += 0.02
-            var settled = [CGFloat]()
-            var settledTrails = [CGFloat]()
-            settled.reserveCapacity(count)
-            settledTrails.reserveCapacity(count)
+            let target: CGFloat = 0.06
             for i in 0..<count {
                 let prev = visualizerLevels[i]
-                let target: CGFloat = 0.06
                 let nextVal = prev * 0.82 + target * 0.18
-                settled.append(nextVal)
-                let prevTrail = i < visualizerTrailLevels.count ? visualizerTrailLevels[i] : prev
-                settledTrails.append(max(nextVal, prevTrail * 0.78 + target * 0.22))
+                visualizerLevels[i] = nextVal
+                let prevTrail = visualizerTrailLevels[i]
+                visualizerTrailLevels[i] = max(nextVal, prevTrail * 0.78 + target * 0.22)
             }
-            visualizerLevels = settled
-            visualizerTrailLevels = settledTrails
         }
     }
 }

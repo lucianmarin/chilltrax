@@ -1291,6 +1291,29 @@ final class MactraxTests: XCTestCase {
         state.visualizerMode = .waveform
         XCTAssertTrue(state.radioPlayer.isVisualizerTimerRunning)
 
+        // Window occlusion / miniaturization / app hide pauses the visualizer timer until visible again
+        state.radioPlayer.isWindowVisible = false
+        XCTAssertFalse(state.radioPlayer.isVisualizerTimerRunning)
+        state.radioPlayer.isWindowVisible = true
+        XCTAssertTrue(state.radioPlayer.isVisualizerTimerRunning)
+
+        // Visualizer ticks coalesce into 1 RadioPlayer.objectWillChange per frame and 0 AppState.objectWillChange emissions
+        var appStateChangeCount = 0
+        var radioPlayerChangeCount = 0
+        let appStateCancellable = state.objectWillChange.sink { _ in
+            appStateChangeCount += 1
+        }
+        let radioPlayerCancellable = state.radioPlayer.objectWillChange.sink { _ in
+            radioPlayerChangeCount += 1
+        }
+        for _ in 0..<10 {
+            state.radioPlayer.tickVisualizer()
+        }
+        XCTAssertEqual(appStateChangeCount, 0, "Visualizer ticks should not invalidate AppState")
+        XCTAssertEqual(radioPlayerChangeCount, 10, "Each visualizer tick should emit at most one RadioPlayer change")
+        _ = appStateCancellable
+        _ = radioPlayerCancellable
+
         // Toggling play/stop stops playback, resets status to idle (READY), and stops the timer
         state.togglePlayPause()
         XCTAssertFalse(state.radioPlayer.isPlaying)

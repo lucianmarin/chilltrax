@@ -73,12 +73,9 @@ public struct CompactPlayerView: View {
 
                 // Full-width Visualizer (same 68pt height as album cover)
                 if appState.isVisualizerVisible {
-                    VisualizerView(
+                    PlayerVisualizerSection(
+                        radioPlayer: appState.radioPlayer,
                         mode: appState.visualizerMode,
-                        levels: appState.radioPlayer.visualizerLevels,
-                        trailLevels: appState.radioPlayer.visualizerTrailLevels,
-                        phase: appState.radioPlayer.waveformPhase,
-                        isPlaying: appState.radioPlayer.isPlaying,
                         onToggleMode: { appState.toggleVisualizerMode() }
                     )
                     .frame(maxWidth: .infinity)
@@ -134,7 +131,10 @@ public struct CompactPlayerView: View {
                 historyCount: appState.filteredHistoryEntries.count,
                 showSearchBar: appState.isSearchBarVisible,
                 visualizerMode: appState.visualizerMode,
-                playbackStatus: appState.radioPlayer.status
+                playbackStatus: appState.radioPlayer.status,
+                onWindowVisibilityChanged: { isVisible in
+                    appState.radioPlayer.isWindowVisible = isVisible
+                }
             )
             .frame(width: 0, height: 0)
         )
@@ -325,6 +325,23 @@ public struct CompactPlayerView: View {
         case .error:
             return MactraxTheme.accentRed
         }
+    }
+}
+
+private struct PlayerVisualizerSection: View {
+    @ObservedObject var radioPlayer: RadioPlayer
+    let mode: VisualizerMode
+    let onToggleMode: () -> Void
+
+    var body: some View {
+        VisualizerView(
+            mode: mode,
+            levels: radioPlayer.visualizerLevels,
+            trailLevels: radioPlayer.visualizerTrailLevels,
+            phase: radioPlayer.waveformPhase,
+            isPlaying: radioPlayer.isPlaying,
+            onToggleMode: onToggleMode
+        )
     }
 }
 

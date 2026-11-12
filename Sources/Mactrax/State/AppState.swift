@@ -405,12 +405,17 @@ public final class AppState: ObservableObject {
 
         self.radioPlayer.isVisualizerEnabled = self.visualizerMode.isVisible
 
-        // Forward nested RadioPlayer objectWillChange so SwiftUI views observing AppState stay in sync
-        self.radioPlayer.objectWillChange
-            .sink { [weak self] _ in
-                self?.objectWillChange.send()
-            }
-            .store(in: &cancellables)
+        // Forward nested RadioPlayer playback state changes (excluding high-frequency visualizer frame ticks)
+        // so SwiftUI views observing AppState do not re-render 30 times per second.
+        Publishers.Merge3(
+            self.radioPlayer.$isPlaying.removeDuplicates().dropFirst().map { _ in () },
+            self.radioPlayer.$status.removeDuplicates().dropFirst().map { _ in () },
+            self.radioPlayer.$errorMessage.removeDuplicates().dropFirst().map { _ in () }
+        )
+        .sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
+        .store(in: &cancellables)
 
         Publishers.CombineLatest(self.radioPlayer.$isPlaying, self.radioPlayer.$status)
             .sink { [weak self] isPlaying, status in

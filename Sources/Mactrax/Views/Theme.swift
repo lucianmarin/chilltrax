@@ -57,19 +57,22 @@ public struct WindowAccessor: NSViewRepresentable {
     public var showSearchBar: Bool
     public var visualizerMode: VisualizerMode
     public var playbackStatus: RadioPlayer.PlaybackStatus
+    public var onWindowVisibilityChanged: ((Bool) -> Void)?
 
     public init(
         isHistoryExpanded: Bool,
         historyCount: Int = 0,
         showSearchBar: Bool = false,
         visualizerMode: VisualizerMode = .spectrum,
-        playbackStatus: RadioPlayer.PlaybackStatus = .idle
+        playbackStatus: RadioPlayer.PlaybackStatus = .idle,
+        onWindowVisibilityChanged: ((Bool) -> Void)? = nil
     ) {
         self.isHistoryExpanded = isHistoryExpanded
         self.historyCount = historyCount
         self.showSearchBar = showSearchBar
         self.visualizerMode = visualizerMode
         self.playbackStatus = playbackStatus
+        self.onWindowVisibilityChanged = onWindowVisibilityChanged
     }
 
     public func makeCoordinator() -> Coordinator {
@@ -78,6 +81,7 @@ public struct WindowAccessor: NSViewRepresentable {
 
     public func makeNSView(context: Context) -> NSView {
         let view = WindowObserverView()
+        context.coordinator.onWindowVisibilityChanged = onWindowVisibilityChanged
         view.onWindowEvent = { [weak coordinator = context.coordinator] window in
             guard let coordinator else { return }
             coordinator.configure(window: window)
@@ -109,6 +113,7 @@ public struct WindowAccessor: NSViewRepresentable {
     }
 
     public func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.onWindowVisibilityChanged = onWindowVisibilityChanged
         let showVisualizer = visualizerMode.isVisible
         let stateChanged = context.coordinator.currentExpanded != isHistoryExpanded
             || context.coordinator.currentResultCount != historyCount
@@ -193,6 +198,7 @@ public struct WindowAccessor: NSViewRepresentable {
         var currentShowSearchBar: Bool = false
         var currentShowVisualizer: Bool = true
         var currentPlaybackStatus: RadioPlayer.PlaybackStatus = .idle
+        var onWindowVisibilityChanged: ((Bool) -> Void)?
         var lastAppliedExpanded: Bool?
         var lastAppliedTargetContentHeight: CGFloat?
         var configuredWindowNumbers = Set<Int>()
@@ -206,6 +212,14 @@ public struct WindowAccessor: NSViewRepresentable {
             for observer in windowObservers {
                 NotificationCenter.default.removeObserver(observer)
             }
+        }
+
+        @MainActor
+        public func updateVisibilityState(for window: NSWindow) {
+            let isVisible = window.occlusionState.contains(.visible)
+                && !window.isMiniaturized
+                && !NSApplication.shared.isHidden
+            onWindowVisibilityChanged?(isVisible)
         }
 
         @MainActor
@@ -259,6 +273,7 @@ public struct WindowAccessor: NSViewRepresentable {
                     MainActor.assumeIsolated {
                         guard let self, let window else { return }
                         self.saveWindowPosition(window)
+                        self.onWindowVisibilityChanged?(false)
                     }
                 }
                 let terminateObserver = center.addObserver(
@@ -271,7 +286,67 @@ public struct WindowAccessor: NSViewRepresentable {
                         self.saveWindowPosition(window)
                     }
                 }
-                windowObservers.append(contentsOf: [moveObserver, closeObserver, terminateObserver])
+                let occlusionObserver = center.addObserver(
+                    forName: NSWindow.didChangeOcclusionStateNotification,
+                    object: window,
+                    queue: .main
+                ) { [weak self, weak window] _ in
+                    MainActor.assumeIsolated {
+                        guard let self, let window else { return }
+                        self.updateVisibilityState(for: window)
+                    }
+                }
+                let miniaturizeObserver = center.addObserver(
+                    forName: NSWindow.didMiniaturizeNotification,
+                    object: window,
+                    queue: .main
+                ) { [weak self] _ in
+                    MainActor.assumeIsolated {
+                        self?.onWindowVisibilityChanged?(false)
+                    }
+                }
+                let deminiaturizeObserver = center.addObserver(
+                    forName: NSWindow.didDeminiaturizeNotification,
+                    object: window,
+                    queue: .main
+                ) { [weak self, weak window] _ in
+                    MainActor.assumeIsolated {
+                        guard let self, let window else { return }
+                        self.updateVisibilityState(for: window)
+                    }
+                }
+                let appHideObserver = center.addObserver(
+                    forName: NSApplication.didHideNotification,
+                    object: nil,
+                    queue: .main
+                ) { [weak self] _ in
+                    MainActor.assumeIsolated {
+                        self?.onWindowVisibilityChanged?(false)
+                    }
+                }
+                let appUnhideObserver = center.addObserver(
+                    forName: NSApplication.didUnhideNotification,
+                    object: nil,
+                    queue: .main
+                ) { [weak self, weak window] _ in
+                    MainActor.assumeIsolated {
+                        guard let self, let window else { return }
+                        self.updateVisibilityState(for: window)
+                    }
+                }
+                windowObservers.append(contentsOf: [
+                    moveObserver,
+                    closeObserver,
+                    terminateObserver,
+                    occlusionObserver,
+                    miniaturizeObserver,
+                    deminiaturizeObserver,
+                    appHideObserver,
+                    appUnhideObserver
+                ])
+                if window.isVisible || window.isMiniaturized || NSApplication.shared.isHidden {
+                    updateVisibilityState(for: window)
+                }
             }
 
             if let toolbar = window.toolbar {
