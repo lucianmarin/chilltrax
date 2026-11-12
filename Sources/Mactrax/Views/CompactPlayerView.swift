@@ -50,7 +50,7 @@ public struct CompactPlayerView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                    // Play / Pause Primary Button (#FA0000 background color, no glow)
+                    // Play / Stop Primary Button (#FA0000 background color, no glow)
                     Button(action: {
                         appState.togglePlayPause()
                     }) {
@@ -59,7 +59,7 @@ public struct CompactPlayerView: View {
                                 .fill(MactraxTheme.accentRed)
                                 .frame(width: 44, height: 44)
 
-                            Image(systemName: appState.radioPlayer.isPlaying ? "pause.fill" : "play.fill")
+                            Image(systemName: appState.radioPlayer.isPlaying ? "stop.fill" : "play.fill")
                                 .font(.system(size: 17, weight: .bold))
                                 .foregroundStyle(MactraxTheme.visualizerBackground(for: colorScheme))
                                 .offset(x: appState.radioPlayer.isPlaying ? 0 : 1.5)
@@ -67,7 +67,7 @@ public struct CompactPlayerView: View {
                     }
                     .buttonStyle(.plain)
                     .keyboardShortcut(.space, modifiers: [])
-                    .help(appState.radioPlayer.isPlaying ? "Pause Stream (Space)" : "Play Stream (Space)")
+                    .help(appState.radioPlayer.isPlaying ? "Stop Stream (Space)" : "Play Stream (Space)")
                 }
                 .frame(height: 68)
 

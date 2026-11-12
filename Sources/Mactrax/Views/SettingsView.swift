@@ -84,12 +84,12 @@ public struct SettingsView: View {
                 }
             }
 
-            Section("Find Broadcasts from mactrax.com & radiodanz.com") {
+            Section("Find Broadcasts from chilltrax.com & radiodanz.com") {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Discover Official Broadcasts & API URLs")
                             .font(.subheadline.weight(.medium))
-                        Text("Scans mactrax.com and radiodanz.com for live broadcast stream links and API URL changes.")
+                        Text("Scans chilltrax.com and radiodanz.com for live broadcast stream links and API URL changes.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

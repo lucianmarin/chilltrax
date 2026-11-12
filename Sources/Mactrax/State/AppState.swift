@@ -23,7 +23,7 @@ public final class AppState: ObservableObject {
     // MARK: - Published UI & Player State
 
     @Published public var currentSong: SongMetadata = .placeholder
-    @Published public var selectedStation: RadioStation = .mactrax {
+    @Published public var selectedStation: RadioStation = .chilltrax {
         didSet {
             defaults.set(selectedStation.rawValue, forKey: DefaultsKeys.selectedStation)
         }
@@ -65,6 +65,7 @@ public final class AppState: ObservableObject {
                 lastActiveVisualizerMode = visualizerMode
                 defaults.set(visualizerMode.rawValue, forKey: DefaultsKeys.lastActiveVisualizerMode)
             }
+            radioPlayer.isVisualizerEnabled = visualizerMode.isVisible
         }
     }
     private var lastActiveVisualizerMode: VisualizerMode = .spectrum
@@ -346,7 +347,7 @@ public final class AppState: ObservableObject {
                 $0.urlString.caseInsensitiveCompare(savedURL) == .orderedSame
             }
             let resolvedStream = matching ?? StationStream(
-                name: savedName ?? "Mactrax",
+                name: savedName ?? "Chilltrax",
                 urlString: savedURL,
                 formatDetails: "Live Stream",
                 isMactraxOfficial: true,
@@ -355,7 +356,7 @@ public final class AppState: ObservableObject {
             self.selectedStation = savedStation ?? resolvedStream.station
             self.selectedStream = resolvedStream
         } else {
-            let station = savedStation ?? .mactrax
+            let station = savedStation ?? .chilltrax
             self.selectedStation = station
             self.selectedStream = StationStream.preferredDefaultStream(for: station, in: initialDiscovered)
         }
@@ -402,6 +403,8 @@ public final class AppState: ObservableObject {
         // Load compressed song history from disk
         self.historyEntries = historyStore.load()
 
+        self.radioPlayer.isVisualizerEnabled = self.visualizerMode.isVisible
+
         // Forward nested RadioPlayer objectWillChange so SwiftUI views observing AppState stay in sync
         self.radioPlayer.objectWillChange
             .sink { [weak self] _ in
@@ -425,7 +428,7 @@ public final class AppState: ObservableObject {
 
     public func togglePlayPause() {
         if radioPlayer.isPlaying {
-            radioPlayer.pause()
+            radioPlayer.stop()
         } else {
             playSelectedStream()
         }
@@ -501,7 +504,7 @@ public final class AppState: ObservableObject {
 
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedName = trimmedName.isEmpty ? (url.host ?? "Custom Station") : trimmedName
-        let isMactrax = trimmedURL.lowercased().contains("mactrax")
+        let isChilltrax = trimmedURL.lowercased().contains("chilltrax")
             || trimmedURL.lowercased().contains("electronicmusicradiogroup")
 
         let custom = StationStream(
@@ -509,7 +512,7 @@ public final class AppState: ObservableObject {
             name: resolvedName,
             urlString: trimmedURL,
             formatDetails: "Custom Stream URL",
-            isMactraxOfficial: isMactrax
+            isMactraxOfficial: isChilltrax
         )
 
         if let index = customStreams.firstIndex(where: { $0.urlString.caseInsensitiveCompare(trimmedURL) == .orderedSame }) {
@@ -578,11 +581,11 @@ public final class AppState: ObservableObject {
         }
     }
 
-    // MARK: - Broadcast & API Discovery from mactrax.com and radiodanz.com
+    // MARK: - Broadcast & API Discovery from chilltrax.com and radiodanz.com
 
     public func discoverBroadcastsFromMactraxWebsite() async {
         isDiscoveringBroadcasts = true
-        discoveryStatusMessage = "Scanning mactrax.com and radiodanz.com for broadcasts and API URLs…"
+        discoveryStatusMessage = "Scanning chilltrax.com and radiodanz.com for broadcasts and API URLs…"
         defer { isDiscoveringBroadcasts = false }
 
         do {
@@ -610,7 +613,7 @@ public final class AppState: ObservableObject {
             discoveredStreams = combinedStreams
             stationAPIEndpoints = updatedEndpoints
 
-            let mactraxCount = results[.mactrax]?.streams.count ?? 0
+            let chilltraxCount = results[.chilltrax]?.streams.count ?? 0
             let danzCount = results[.radioDanz]?.streams.count ?? 0
             let apiSummary: String
             if updatedAPISites.isEmpty {
@@ -618,7 +621,7 @@ public final class AppState: ObservableObject {
             } else {
                 apiSummary = "Updated API URLs for \(updatedAPISites.joined(separator: ", "))."
             }
-            discoveryStatusMessage = "Found \(mactraxCount) Mactrax and \(danzCount) Radio Danz broadcasts. \(apiSummary)"
+            discoveryStatusMessage = "Found \(chilltraxCount) Chilltrax and \(danzCount) Radio Danz broadcasts. \(apiSummary)"
 
             // Ensure current selection stays valid or updated
             if let updatedMatch = combinedStreams.first(where: { $0.urlString.caseInsensitiveCompare(selectedStream.urlString) == .orderedSame }) {

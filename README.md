@@ -1,8 +1,8 @@
-# Chilltrax — Winamp of the AI era
+# Mactrax — Winamp of the AI era
 
 ![screenshot](screenshot.jpg)
 
-Chilltrax is a native macOS radio player built with SwiftUI and AVFoundation for **Chilltrax — The World's Chillout Channel** (`chilltrax.com`) and its sister station **Radio Danz — The World's Pure Dance Channel** (`radiodanz.com`).
+Mactrax is a native macOS radio player built with SwiftUI and AVFoundation for **Chilltrax — The World's Chillout Channel** (`chilltrax.com`) and its sister station **Radio Danz — The World's Pure Dance Channel** (`radiodanz.com`).
 
 ## Specification & Requirements
 
@@ -14,7 +14,7 @@ Chilltrax is a native macOS radio player built with SwiftUI and AVFoundation for
 3. **Real-Time Audio Visualizer (Waveform or Spectrum)**:
    - Interactive visualizer supporting both **Waveform** and **Spectrum** modes, switchable directly from the player or Settings.
 4. **Playback Controls & Current Song Display**:
-   - Play / Pause toggle (plays at maximum volume `1.0` so system volume controls audio level), left-aligned toolbar station status badge (`READY` / `TRAX` or `DANZ` / `PAUSED` / `LOADING` / `ERROR`) that switches between Chilltrax and Radio Danz when `TRAX` or `DANZ` is clicked and opens the Settings panel for other statuses, current song title, artist, album/mix badge, and album cover.
+   - Play / Stop toggle (plays at maximum volume `1.0` so system volume controls audio level and tears down the stream on stop so nothing buffers in the background), left-aligned toolbar station status badge (`READY` / `TRAX` or `DANZ` / `PAUSED` / `LOADING` / `ERROR`) that switches between Chilltrax and Radio Danz when `TRAX` or `DANZ` is clicked and opens the Settings panel for other statuses, current song title, artist, album/mix badge, and album cover.
 5. **Album Cover Fetching & Local Cover Cache**:
    - Global toggle ("Display and fetch album covers") to enable or disable displaying and fetching album artwork for the currently playing song and history entries while keeping already-fetched covers cached locally on disk (`~/Library/Application Support/Mactrax/Covers`) until history is cleared.
 6. **macOS Notifications on Song Change**:

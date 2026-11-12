@@ -180,7 +180,7 @@ public final class CompressedHistoryStore {
             let year = columns.count > 5 ? Self.unescapeField(columns[5]) : ""
             let coverURLString = columns.count > 6 ? Self.unescapeField(columns[6]) : ""
             let buyURLString = columns.count > 7 ? Self.unescapeField(columns[7]) : ""
-            let stationName = columns.count > 8 ? Self.unescapeField(columns[8]) : "Mactrax"
+            let stationName = columns.count > 8 ? Self.unescapeField(columns[8]) : "Chilltrax"
             let stationURLString = columns.count > 9 ? Self.unescapeField(columns[9]) : StationStream.defaultStream.urlString
 
             entries.append(

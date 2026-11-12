@@ -26,6 +26,14 @@ public final class RadioPlayer: NSObject, ObservableObject {
     @Published public private(set) var status: PlaybackStatus = .idle
     @Published public private(set) var errorMessage: String?
 
+    /// Controls whether the 30fps visualizer timer should run while streaming.
+    public var isVisualizerEnabled: Bool = true {
+        didSet {
+            guard isVisualizerEnabled != oldValue else { return }
+            updateVisualizerTimerState()
+        }
+    }
+
     nonisolated public static let visualizerBarCount = 56
 
     /// 56 normalized frequency/amplitude bins in `0.0...1.0` updated at 30fps for Waveform & Spectrum visualizers.
@@ -48,7 +56,6 @@ public final class RadioPlayer: NSObject, ObservableObject {
 
     public override init() {
         super.init()
-        startVisualizerTimer()
     }
 
     public func play(url: URL) {
@@ -62,12 +69,11 @@ public final class RadioPlayer: NSObject, ObservableObject {
 
         player?.volume = 1.0
         player?.play()
+        updateVisualizerTimerState()
     }
 
     public func pause() {
-        isPlaying = false
-        status = .paused
-        teardownActiveStream()
+        stop()
     }
 
     public func stop() {
@@ -77,6 +83,7 @@ public final class RadioPlayer: NSObject, ObservableObject {
     }
 
     private func teardownActiveStream() {
+        stopVisualizerTimer()
         player?.pause()
         player?.replaceCurrentItem(with: nil)
         timeControlObserver?.invalidate()
@@ -91,11 +98,12 @@ public final class RadioPlayer: NSObject, ObservableObject {
         player = nil
         currentStreamURL = nil
         lastRealAudioLevels = nil
+        resetVisualizerLevels()
     }
 
     public func togglePlayPause(url: URL) {
         if isPlaying {
-            pause()
+            stop()
         } else {
             play(url: url)
         }
@@ -103,7 +111,8 @@ public final class RadioPlayer: NSObject, ObservableObject {
 
     public func setSimulatedPlaybackStateForTesting(isPlaying: Bool, status: PlaybackStatus = .playing) {
         self.isPlaying = isPlaying
-        self.status = isPlaying ? status : .paused
+        self.status = isPlaying ? status : (status == .playing ? .idle : status)
+        updateVisualizerTimerState()
     }
 
     // MARK: - AVPlayer Setup & ICY Metadata
@@ -141,10 +150,12 @@ public final class RadioPlayer: NSObject, ObservableObject {
                     self.isPlaying = false
                     self.status = .error
                     self.errorMessage = observedItem.error?.localizedDescription ?? "Unable to connect to stream."
+                    self.updateVisualizerTimerState()
                 case .readyToPlay:
                     if self.isPlaying && self.player?.timeControlStatus == .playing {
                         self.status = .playing
                     }
+                    self.updateVisualizerTimerState()
                 case .unknown:
                     break
                 @unknown default:
@@ -167,11 +178,12 @@ public final class RadioPlayer: NSObject, ObservableObject {
                     }
                 case .paused:
                     if !self.isPlaying {
-                        self.status = self.status == .error ? .error : .paused
+                        self.status = self.status == .error ? .error : .idle
                     }
                 @unknown default:
                     break
                 }
+                self.updateVisualizerTimerState()
             }
         }
     }
@@ -260,12 +272,40 @@ public final class RadioPlayer: NSObject, ObservableObject {
         waveformPhase += 0.07 + averageIntensity * 0.24
     }
 
+    public var isVisualizerTimerRunning: Bool {
+        visualizerTimer?.isValid == true
+    }
+
+    private func updateVisualizerTimerState() {
+        let shouldRun = isVisualizerEnabled && isPlaying && (status == .playing || status == .buffering)
+        if shouldRun {
+            startVisualizerTimer()
+        } else {
+            stopVisualizerTimer()
+        }
+    }
+
     private func startVisualizerTimer() {
-        visualizerTimer?.invalidate()
+        guard visualizerTimer == nil else { return }
         visualizerTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.tickVisualizer()
             }
+        }
+    }
+
+    private func stopVisualizerTimer() {
+        visualizerTimer?.invalidate()
+        visualizerTimer = nil
+    }
+
+    private func resetVisualizerLevels() {
+        let idleLevels = Array(repeating: CGFloat(0.08), count: Self.visualizerBarCount)
+        if visualizerLevels != idleLevels {
+            visualizerLevels = idleLevels
+        }
+        if visualizerTrailLevels != idleLevels {
+            visualizerTrailLevels = idleLevels
         }
     }
 

@@ -62,7 +62,7 @@ public final class MactraxAppDelegate: NSObject, NSApplicationDelegate, NSMenuIt
             }
         }
 
-        let playPauseTitle = appState.radioPlayer.isPlaying ? "Pause" : "Play"
+        let playPauseTitle = appState.radioPlayer.isPlaying ? "Stop" : "Play"
         let playPauseItem = NSMenuItem(
             title: playPauseTitle,
             action: #selector(handleDockPlayPause(_:)),
@@ -196,14 +196,14 @@ struct MactraxApp: App {
             }
 
             CommandMenu("Playback") {
-                Button(appState.radioPlayer.isPlaying ? "Pause" : "Play") {
+                Button(appState.radioPlayer.isPlaying ? "Stop" : "Play") {
                     appState.togglePlayPause()
                 }
                 .keyboardShortcut("p", modifiers: [.command])
 
                 Divider()
 
-                Button("Toggle Station (Mactrax / Radio Danz)") {
+                Button("Toggle Station (Chilltrax / Radio Danz)") {
                     appState.toggleStation()
                 }
                 .keyboardShortcut("s", modifiers: [.command, .shift])

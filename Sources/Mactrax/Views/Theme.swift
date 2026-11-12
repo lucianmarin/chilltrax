@@ -109,17 +109,28 @@ public struct WindowAccessor: NSViewRepresentable {
     }
 
     public func updateNSView(_ nsView: NSView, context: Context) {
+        let showVisualizer = visualizerMode.isVisible
+        let stateChanged = context.coordinator.currentExpanded != isHistoryExpanded
+            || context.coordinator.currentResultCount != historyCount
+            || context.coordinator.currentShowSearchBar != showSearchBar
+            || context.coordinator.currentShowVisualizer != showVisualizer
+            || context.coordinator.currentPlaybackStatus != playbackStatus
+
         context.coordinator.currentExpanded = isHistoryExpanded
         context.coordinator.currentResultCount = historyCount
         context.coordinator.currentShowSearchBar = showSearchBar
-        context.coordinator.currentShowVisualizer = visualizerMode.isVisible
+        context.coordinator.currentShowVisualizer = showVisualizer
+        context.coordinator.currentPlaybackStatus = playbackStatus
+
+        guard stateChanged else { return }
+
         if let window = nsView.window {
             context.coordinator.configure(window: window)
             context.coordinator.syncSize(
                 isExpanded: isHistoryExpanded,
                 resultCount: historyCount,
                 showSearchBar: showSearchBar,
-                showVisualizer: visualizerMode.isVisible,
+                showVisualizer: showVisualizer,
                 on: window
             )
         }
@@ -130,7 +141,7 @@ public struct WindowAccessor: NSViewRepresentable {
                 isExpanded: isHistoryExpanded,
                 resultCount: historyCount,
                 showSearchBar: showSearchBar,
-                showVisualizer: visualizerMode.isVisible,
+                showVisualizer: showVisualizer,
                 on: window
             )
         }
@@ -181,6 +192,7 @@ public struct WindowAccessor: NSViewRepresentable {
         var currentResultCount: Int = 0
         var currentShowSearchBar: Bool = false
         var currentShowVisualizer: Bool = true
+        var currentPlaybackStatus: RadioPlayer.PlaybackStatus = .idle
         var lastAppliedExpanded: Bool?
         var lastAppliedTargetContentHeight: CGFloat?
         var configuredWindowNumbers = Set<Int>()

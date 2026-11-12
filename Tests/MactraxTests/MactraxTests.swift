@@ -6,18 +6,18 @@ final class MactraxTests: XCTestCase {
 
     // MARK: - Broadcast Discovery & PLS Parsing
 
-    func testParseBroadcastStreamsFromMactraxHTML() {
+    func testParseBroadcastStreamsFromChilltraxHTML() {
         let sampleHTML = """
         <html>
         <body>
         <script>
-            streamurl: "https://www.mactrax.com/listen/?mode=redirect",
+            streamurl: "https://www.chilltrax.com/listen/?mode=redirect",
         </script>
         <div id="listen-section">
             <ul>
                 <li><a href="http://streams.electronicmusicradiogroup.org:9050" target="_blank">Highest (HD) Quality 128Kbps AAC+</a></li>
                 <li><a href="http://streams.electronicmusicradiogroup.org:9000" target="_blank">High Quality 128Kbps MP3</a></li>
-                <li><a id="firewallStream" href="https://www.mactrax.com/listen" target="_blank">High Quality 128Kbps MP3 (firewall friendly)</a></li>
+                <li><a id="firewallStream" href="https://www.chilltrax.com/listen" target="_blank">High Quality 128Kbps MP3 (firewall friendly)</a></li>
                 <li><a href="http://streams.electronicmusicradiogroup.org:9020" target="_blank">High Quality 80Kbps AAC+</a></li>
                 <li><a href="http://streams.electronicmusicradiogroup.org:9010" target="_blank">High Quality 64Kbps AAC+</a></li>
             </ul>
@@ -28,12 +28,12 @@ final class MactraxTests: XCTestCase {
 
         let streams = MactraxClient.parseBroadcastStreams(fromHTML: sampleHTML)
         XCTAssertGreaterThanOrEqual(streams.count, 6)
-        XCTAssertTrue(streams.contains { $0.urlString == "https://www.mactrax.com/listen/?mode=redirect" })
+        XCTAssertTrue(streams.contains { $0.urlString == "https://www.chilltrax.com/listen/?mode=redirect" })
         XCTAssertTrue(streams.contains { $0.urlString == "http://streams.electronicmusicradiogroup.org:9050" })
         XCTAssertTrue(streams.contains { $0.urlString == "http://streams.electronicmusicradiogroup.org:9000" })
-        XCTAssertTrue(streams.contains { $0.urlString == "https://www.mactrax.com/listen" })
-        XCTAssertTrue(streams.contains { $0.urlString == "https://streamssleu.mactrax.com/stream?sid=1" })
-        XCTAssertTrue(streams.allSatisfy { $0.station == .mactrax })
+        XCTAssertTrue(streams.contains { $0.urlString == "https://www.chilltrax.com/listen" })
+        XCTAssertTrue(streams.contains { $0.urlString == "https://streamssleu.chilltrax.com/stream?sid=1" })
+        XCTAssertTrue(streams.allSatisfy { $0.station == .chilltrax })
     }
 
     func testParseRadioDanzBroadcastStreamsAndAPIEndpoints() {
@@ -81,32 +81,32 @@ final class MactraxTests: XCTestCase {
         let pls = """
         [playlist]
         NumberOfEntries=1
-        File1=https://streamssleu.mactrax.com/stream?sid=1
-        Title1=mactrax
+        File1=https://streamssleu.chilltrax.com/stream?sid=1
+        Title1=chilltrax
         Length1=-1
         Version=2
         """
         let url = MactraxClient.parsePLSStreamURL(from: pls)
-        XCTAssertEqual(url?.absoluteString, "https://streamssleu.mactrax.com/stream?sid=1")
+        XCTAssertEqual(url?.absoluteString, "https://streamssleu.chilltrax.com/stream?sid=1")
     }
 
     func testDefaultStreamPrefersRedirectAndFallsBackToSecondBestOption() {
-        let mactraxDefault = RadioStation.mactrax.defaultStream
-        XCTAssertTrue(mactraxDefault.urlString.localizedCaseInsensitiveContains("redirect"))
-        XCTAssertEqual(mactraxDefault.urlString, "https://www.mactrax.com/listen/?mode=redirect")
+        let chilltraxDefault = RadioStation.chilltrax.defaultStream
+        XCTAssertTrue(chilltraxDefault.urlString.localizedCaseInsensitiveContains("redirect"))
+        XCTAssertEqual(chilltraxDefault.urlString, "https://www.chilltrax.com/listen/?mode=redirect")
 
         let radioDanzDefault = RadioStation.radioDanz.defaultStream
         XCTAssertTrue(radioDanzDefault.urlString.localizedCaseInsensitiveContains("redirect"))
         XCTAssertEqual(radioDanzDefault.urlString, "https://www.radiodanz.com/results/?mode=redirect")
 
-        let mactraxWithoutRedirect = StationStream.defaultMactraxStreams.filter {
+        let chilltraxWithoutRedirect = StationStream.defaultChilltraxStreams.filter {
             !$0.urlString.localizedCaseInsensitiveContains("redirect")
         }
-        let mactraxFallback = StationStream.preferredDefaultStream(
-            for: .mactrax,
-            in: mactraxWithoutRedirect
+        let chilltraxFallback = StationStream.preferredDefaultStream(
+            for: .chilltrax,
+            in: chilltraxWithoutRedirect
         )
-        XCTAssertEqual(mactraxFallback.urlString, "https://streamssleu.mactrax.com/stream?sid=1")
+        XCTAssertEqual(chilltraxFallback.urlString, "https://streamssleu.chilltrax.com/stream?sid=1")
 
         let radioDanzWithoutRedirect = StationStream.defaultRadioDanzStreams.filter {
             !$0.urlString.localizedCaseInsensitiveContains("redirect")
@@ -166,7 +166,7 @@ final class MactraxTests: XCTestCase {
             title: "Kerala",
             albumOrMix: "Migration",
             year: "2017",
-            coverURLString: "https://www.mactrax.com/images/cover/kerala.jpg"
+            coverURLString: "https://www.chilltrax.com/images/cover/kerala.jpg"
         )
         let song2 = SongMetadata(
             artist: "Zero 7",
@@ -203,7 +203,7 @@ final class MactraxTests: XCTestCase {
         XCTAssertEqual(reloaded.count, 2)
         XCTAssertEqual(reloaded[0].artist, "Zero 7")
         XCTAssertEqual(reloaded[0].title, "In the Waiting Line")
-        XCTAssertEqual(reloaded[0].coverURL?.absoluteString, "https://www.mactrax.com/images/cover/zero7.jpg")
+        XCTAssertEqual(reloaded[0].coverURL?.absoluteString, "https://www.chilltrax.com/images/cover/zero7.jpg")
         XCTAssertEqual(reloaded[1].artist, "Bonobo")
         XCTAssertEqual(reloaded[1].title, "Kerala")
 
@@ -252,10 +252,10 @@ final class MactraxTests: XCTestCase {
         XCTAssertEqual(state.visualizerMode, .waveform)
         XCTAssertTrue(state.isVisualizerVisible)
 
-        // Default station is Mactrax (TRAX) and can switch to Radio Danz (DANZ)
-        XCTAssertEqual(state.selectedStation, .mactrax)
+        // Default station is Chilltrax (TRAX) and can switch to Radio Danz (DANZ)
+        XCTAssertEqual(state.selectedStation, .chilltrax)
         XCTAssertEqual(state.selectedStation.badgeLabel, "TRAX")
-        XCTAssertEqual(state.selectedStream.station, .mactrax)
+        XCTAssertEqual(state.selectedStream.station, .chilltrax)
         XCTAssertEqual(state.toolbarStatusLabel, "READY")
 
         var settingsOpenCount = 0
@@ -264,7 +264,7 @@ final class MactraxTests: XCTestCase {
             settingsOpenCount += 1
         })
         XCTAssertEqual(settingsOpenCount, 1)
-        XCTAssertEqual(state.selectedStation, .mactrax)
+        XCTAssertEqual(state.selectedStation, .chilltrax)
 
         // Clicking toolbar status while TRAX / DANZ switches stations without opening Settings
         state.radioPlayer.setSimulatedPlaybackStateForTesting(isPlaying: true, status: .playing)
@@ -282,7 +282,7 @@ final class MactraxTests: XCTestCase {
             settingsOpenCount += 1
         })
         XCTAssertEqual(settingsOpenCount, 1)
-        XCTAssertEqual(state.selectedStation, .mactrax)
+        XCTAssertEqual(state.selectedStation, .chilltrax)
         XCTAssertEqual(state.toolbarStatusLabel, "TRAX")
 
         // Clicking toolbar status while PAUSED opens Settings without switching stations
@@ -292,11 +292,11 @@ final class MactraxTests: XCTestCase {
             settingsOpenCount += 1
         })
         XCTAssertEqual(settingsOpenCount, 2)
-        XCTAssertEqual(state.selectedStation, .mactrax)
+        XCTAssertEqual(state.selectedStation, .chilltrax)
 
-        state.selectStation(.mactrax)
-        XCTAssertEqual(state.selectedStation, .mactrax)
-        XCTAssertEqual(state.selectedStream.station, .mactrax)
+        state.selectStation(.chilltrax)
+        XCTAssertEqual(state.selectedStation, .chilltrax)
+        XCTAssertEqual(state.selectedStream.station, .chilltrax)
 
         // Test custom stream configuration
         XCTAssertFalse(state.addAndSelectCustomStream(name: "Invalid", urlString: "not-a-url"))
@@ -305,7 +305,7 @@ final class MactraxTests: XCTestCase {
         XCTAssertEqual(state.selectedStream.urlString, "https://radio.stereoscenic.com/asp-s")
 
         // Test song change recording & TRAX / DANZ history labels across stations
-        state.selectStation(.mactrax)
+        state.selectStation(.chilltrax)
         state.radioPlayer.setSimulatedPlaybackStateForTesting(isPlaying: true, status: .playing)
         state.handleIncomingSongMetadata(
             SongMetadata(artist: "Air", title: "La Femme d'Argent", albumOrMix: "Moon Safari", coverURLString: "https://example.com/air.jpg"),
@@ -411,11 +411,11 @@ final class MactraxTests: XCTestCase {
         XCTAssertEqual(state.historyEntries[1].coverURL?.absoluteString, "https://example.com/ma.jpg")
         XCTAssertEqual(state.historyEntries[2].coverURL?.absoluteString, "https://example.com/air.jpg")
 
-        let mactraxNotification = SongNotificationManager.makeNotificationContent(
+        let chilltraxNotification = SongNotificationManager.makeNotificationContent(
             song: SongMetadata(artist: "Air", title: "La Femme d'Argent", albumOrMix: "Moon Safari"),
-            station: .mactrax
+            station: .chilltrax
         )
-        XCTAssertEqual(mactraxNotification.body, "Now playing on Mactrax")
+        XCTAssertEqual(chilltraxNotification.body, "Now playing on Chilltrax")
 
         let radioDanzNotification = SongNotificationManager.makeNotificationContent(
             song: SongMetadata(artist: "Massive Attack", title: "Teardrop", albumOrMix: "Mezzanine"),
@@ -838,7 +838,7 @@ final class MactraxTests: XCTestCase {
                     artist: "Artist \(i)",
                     title: "Track \(i)",
                     albumOrMix: "Album \(i)",
-                    stationName: "Mactrax",
+                    stationName: "Chilltrax",
                     stationURLString: StationStream.defaultStream.urlString
                 )
             )
@@ -893,8 +893,8 @@ final class MactraxTests: XCTestCase {
             return
         }
 
-        let coverURL1 = URL(string: "https://www.mactrax.com/images/cover/track1.png")!
-        let coverURL2 = URL(string: "https://www.mactrax.com/images/cover/track2.jpg")!
+        let coverURL1 = URL(string: "https://www.chilltrax.com/images/cover/track1.png")!
+        let coverURL2 = URL(string: "https://www.chilltrax.com/images/cover/track2.jpg")!
 
         MockCoverURLProtocol.requestHandler = { request in
             let response = HTTPURLResponse(
@@ -965,7 +965,7 @@ final class MactraxTests: XCTestCase {
 
         // Disabling album cover fetching keeps already fetched covers in cache and prevents fetching new ones
         state.fetchAlbumCoverFromMactrax = false
-        let coverURL3 = URL(string: "https://www.mactrax.com/images/cover/track3.jpg")!
+        let coverURL3 = URL(string: "https://www.chilltrax.com/images/cover/track3.jpg")!
         MockCoverURLProtocol.requestHandler = { request in
             let urlString = request.url?.absoluteString ?? ""
             if urlString.contains("GetLastTen") {
@@ -1140,7 +1140,7 @@ final class MactraxTests: XCTestCase {
             artist: "Bonobo",
             title: "Kiara",
             albumOrMix: "Black Sands",
-            stationName: "Mactrax",
+            stationName: "Chilltrax",
             stationURLString: StationStream.defaultStream.urlString
         )
         historyStore.save([historyEntry])
@@ -1216,8 +1216,8 @@ final class MactraxTests: XCTestCase {
         XCTAssertEqual(playingMenu.items[1].title, "Bonobo")
         XCTAssertFalse(playingMenu.items[1].isEnabled)
         XCTAssertNil(playingMenu.items[1].action)
-        XCTAssertEqual(playingMenu.items[2].title, "Pause")
-        XCTAssertEqual(playingMenu.items[3].title, "Switch to Mactrax")
+        XCTAssertEqual(playingMenu.items[2].title, "Stop")
+        XCTAssertEqual(playingMenu.items[3].title, "Switch to Chilltrax")
         XCTAssertTrue(playingMenu.items[4].isSeparatorItem)
         XCTAssertEqual(playingMenu.items[5].title, "Open on Apple Music")
         XCTAssertTrue(playingMenu.items[5].isEnabled)
@@ -1249,11 +1249,54 @@ final class MactraxTests: XCTestCase {
         XCTAssertEqual(NSPasteboard.general.string(forType: .string), "Tycho - Awake")
         XCTAssertEqual(state.historyBadgeLabel(for: historyEntry), "TRAX")
 
-        // Trigger play/pause from dock menu to pause
+        // Trigger play/stop from dock menu to stop
         delegate.handleDockPlayPause(playingMenu.items[2])
         XCTAssertFalse(state.radioPlayer.isPlaying)
+        XCTAssertEqual(state.radioPlayer.status, .idle)
         XCTAssertFalse(state.canOpenCurrentSongOnAppleMusic)
         XCTAssertFalse(state.canCopyCurrentSongToClipboard)
+    }
+
+    @MainActor
+    func testVisualizerTimerStopsWhenOffOrNotPlayingAndStopTearsDownStream() {
+        let suiteName = "MactraxVisualizerTimerTests-\(UUID().uuidString)"
+        guard let testDefaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Failed to create test UserDefaults")
+            return
+        }
+        defer {
+            testDefaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let state = AppState(
+            client: MactraxClient(),
+            historyStore: CompressedHistoryStore(fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("history-\(UUID().uuidString).lzfse")),
+            defaults: testDefaults,
+            startPollingAutomatically: false
+        )
+
+        // Idle player should not run the 30 FPS visualizer timer
+        XCTAssertFalse(state.radioPlayer.isVisualizerTimerRunning)
+
+        // When playing with visualizer visible, timer runs
+        state.visualizerMode = .spectrum
+        state.radioPlayer.setSimulatedPlaybackStateForTesting(isPlaying: true, status: .playing)
+        XCTAssertTrue(state.radioPlayer.isVisualizerTimerRunning)
+
+        // Turning visualizer off stops the timer immediately even while playing
+        state.visualizerMode = .off
+        XCTAssertFalse(state.radioPlayer.isVisualizerTimerRunning)
+
+        // Turning visualizer back on resumes the timer while playing
+        state.visualizerMode = .waveform
+        XCTAssertTrue(state.radioPlayer.isVisualizerTimerRunning)
+
+        // Toggling play/stop stops playback, resets status to idle (READY), and stops the timer
+        state.togglePlayPause()
+        XCTAssertFalse(state.radioPlayer.isPlaying)
+        XCTAssertEqual(state.radioPlayer.status, .idle)
+        XCTAssertEqual(state.toolbarStatusLabel, "READY")
+        XCTAssertFalse(state.radioPlayer.isVisualizerTimerRunning)
     }
 }
 
